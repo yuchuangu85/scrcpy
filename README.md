@@ -572,7 +572,7 @@ Also see [issue #14].
 ## Shortcuts
 
 In the following list, `MOD` is the shortcut modifier. By default, it's (left)
-`Alt`, but it can be configured by `--shortcut-mod`.
+`Alt` or (left) `Cmd`, but it can be configured by `--shortcut-mod`.
 
  | Action                                      |   Shortcut
  | ------------------------------------------- |:-----------------------------
