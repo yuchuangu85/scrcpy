@@ -37,8 +37,13 @@ Check [stackoverflow][device-unauthorized].
 
 ### Device not detected
 
+>     adb: error: failed to get feature set: no devices/emulators found
+
+Check that you correctly enabled [adb debugging][enable-adb].
+
 If your device is not detected, you may need some [drivers] (on Windows).
 
+[enable-adb]: https://developer.android.com/studio/command-line/adb.html#Enabling
 [drivers]: https://developer.android.com/studio/run/oem-usb.html
 
 
@@ -107,16 +112,6 @@ In developer options, enable:
 > _Allow granting permissions and simulating input via USB debugging_
 
 [simulating input]: https://github.com/Genymobile/scrcpy/issues/70#issuecomment-373286323
-
-
-### Mouse clicks at wrong location
-
-On MacOS, with HiDPI support and multiple screens, input location are wrongly
-scaled. See [#15].
-
-[#15]: https://github.com/Genymobile/scrcpy/issues/15
-
-Open _scrcpy_ directly on the monitor you use it.
 
 
 ### Special characters do not work
@@ -197,3 +192,41 @@ scrcpy -m 1920
 scrcpy -m 1024
 scrcpy -m 800
 ```
+
+You could also try another [encoder](README.md#encoder).
+
+
+## Command line on Windows
+
+Some Windows users are not familiar with the command line. Here is how to open a
+terminal and run `scrcpy` with arguments:
+
+ 1. Press <kbd>Windows</kbd>+<kbd>r</kbd>, this opens a dialog box.
+ 2. Type `cmd` and press <kbd>Enter</kbd>, this opens a terminal.
+ 3. Go to your _scrcpy_ directory, by typing (adapt the path):
+
+    ```bat
+    cd C:\Users\user\Downloads\scrcpy-win64-xxx
+    ```
+
+    and press <kbd>Enter</kbd>
+ 4. Type your command. For example:
+
+    ```bat
+    scrcpy --record file.mkv
+    ```
+
+If you plan to always use the same arguments, create a file `myscrcpy.bat`
+(enable [show file extensions] to avoid confusion) in the `scrcpy` directory,
+containing your command. For example:
+
+```bat
+scrcpy --prefer-text --turn-screen-off --stay-awake
+```
+
+Then just double-click on that file.
+
+You could also edit (a copy of) `scrcpy-console.bat` or `scrcpy-noconsole.vbs`
+to add some arguments.
+
+[show file extensions]: https://www.howtogeek.com/205086/beginner-how-to-make-windows-show-file-extensions/

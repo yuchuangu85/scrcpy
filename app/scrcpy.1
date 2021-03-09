@@ -57,8 +57,16 @@ The list of possible display ids can be listed by "adb shell dumpsys display"
 Default is 0.
 
 .TP
+.BI "\-\-encoder " name
+Use a specific MediaCodec encoder (must be a H.264 encoder).
+
+.TP
 .B \-\-force\-adb\-forward
 Do not attempt to use "adb reverse" to connect to the device.
+
+.TP
+.B \-\-forward\-all\-clicks
+By default, right-click triggers BACK (or POWER on) and middle-click triggers HOME. This option disables these shortcuts and forward the clicks to the device instead.
 
 .TP
 .B \-f, \-\-fullscreen
@@ -67,6 +75,12 @@ Start in fullscreen.
 .TP
 .B \-h, \-\-help
 Print this help.
+
+.TP
+.B \-\-legacy\-paste
+Inject computer clipboard text as a sequence of key events on Ctrl+v (like MOD+Shift+v).
+
+This is a workaround for some devices not behaving as expected when setting the device clipboard programmatically.
 
 .TP
 .BI "\-\-lock\-video\-orientation " value
@@ -93,12 +107,12 @@ Disable device control (mirror the device in read\-only).
 Do not display device (only when screen recording is enabled).
 
 .TP
-.B \-\-no\-mipmaps
-If the renderer is OpenGL 3.0+ or OpenGL ES 2.0+, then mipmaps are automatically generated to improve downscaling quality. This option disables the generation of mipmaps.
-
-.TP
 .B \-\-no\-key\-repeat
 Do not forward repeated key events when a key is held down.
+
+.TP
+.B \-\-no\-mipmaps
+If the renderer is OpenGL 3.0+ or OpenGL ES 2.0+, then mipmaps are automatically generated to improve downscaling quality. This option disables the generation of mipmaps.
 
 .TP
 .BI "\-p, \-\-port " port[:port]
@@ -199,30 +213,30 @@ Set a custom window title.
 .BI "\-\-window\-x " value
 Set the initial window horizontal position.
 
-Default is "auto".\n
+Default is "auto".
 
 .TP
 .BI "\-\-window\-y " value
 Set the initial window vertical position.
 
-Default is "auto".\n
+Default is "auto".
 
 .TP
 .BI "\-\-window\-width " value
 Set the initial window width.
 
-Default is 0 (automatic).\n
+Default is 0 (automatic).
 
 .TP
 .BI "\-\-window\-height " value
 Set the initial window height.
 
-Default is 0 (automatic).\n
+Default is 0 (automatic).
 
 .SH SHORTCUTS
 
 In the following list, MOD is the shortcut modifier. By default, it's (left)
-Alt or (left) Super, but it can be configured by \-\-shortcut-mod.
+Alt or (left) Super, but it can be configured by \-\-shortcut-mod (see above).
 
 .TP
 .B MOD+f

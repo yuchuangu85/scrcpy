@@ -1,4 +1,4 @@
-# scrcpy (v1.16)
+# scrcpy (v1.17)
 
 [Read in another language](#translations)
 
@@ -77,10 +77,10 @@ hard).
 For Windows, for simplicity, a prebuilt archive with all the dependencies
 (including `adb`) is available:
 
- - [`scrcpy-win64-v1.16.zip`][direct-win64]  
-   _(SHA-256: 3f30dc5db1a2f95c2b40a0f5de91ec1642d9f53799250a8c529bc882bc0918f0)_
+ - [`scrcpy-win64-v1.17.zip`][direct-win64]  
+   _(SHA-256: 8b9e57993c707367ed10ebfe0e1ef563c7a29d9af4a355cd8b6a52a317c73eea)_
 
-[direct-win64]: https://github.com/Genymobile/scrcpy/releases/download/v1.16/scrcpy-win64-v1.16.zip
+[direct-win64]: https://github.com/Genymobile/scrcpy/releases/download/v1.17/scrcpy-win64-v1.17.zip
 
 It is also available in [Chocolatey]:
 
@@ -116,6 +116,10 @@ brew install scrcpy
 You need `adb`, accessible from your `PATH`. If you don't have it yet:
 
 ```bash
+# Homebrew >= 2.6.0
+brew install --cask android-platform-tools
+
+# Homebrew < 2.6.0
 brew cask install android-platform-tools
 ```
 
@@ -202,6 +206,24 @@ scrcpy --lock-video-orientation 3   # 90° clockwise
 
 This affects recording orientation.
 
+The [window may also be rotated](#rotation) independently.
+
+
+#### Encoder
+
+Some devices have more than one encoder, and some of them may cause issues or
+crash. It is possible to select a different encoder:
+
+```bash
+scrcpy --encoder OMX.qcom.video.encoder.avc
+```
+
+To list the available encoders, you could pass an invalid encoder name, the
+error will give the available encoders:
+
+```bash
+scrcpy --encoder _
+```
 
 ### Recording
 
@@ -235,7 +257,13 @@ _Scrcpy_ uses `adb` to communicate with the device, and `adb` can [connect] to a
 device over TCP/IP:
 
 1. Connect the device to the same Wi-Fi as your computer.
-2. Get your device IP address (in Settings → About phone → Status).
+2. Get your device IP address, in Settings → About phone → Status, or by
+   executing this command:
+
+    ```bash
+    adb shell ip route | awk '{print $9}'
+    ```
+
 3. Enable adb over TCP/IP on your device: `adb tcpip 5555`.
 4. Unplug your device.
 5. Connect to your device: `adb connect DEVICE_IP:5555` _(replace `DEVICE_IP`)_.
@@ -382,12 +410,12 @@ The rotation can also be changed dynamically with <kbd>MOD</kbd>+<kbd>←</kbd>
 _(left)_ and <kbd>MOD</kbd>+<kbd>→</kbd> _(right)_.
 
 Note that _scrcpy_ manages 3 different rotations:
-- <kbd>MOD</kbd>+<kbd>r</kbd> requests the device to switch between portrait and
-  landscape (the current running app may refuse, if it does support the
-  requested orientation).
- - `--lock-video-orientation` changes the mirroring orientation (the orientation
-   of the video sent from the device to the computer). This affects the
-   recording.
+ - <kbd>MOD</kbd>+<kbd>r</kbd> requests the device to switch between portrait
+   and landscape (the current running app may refuse, if it does support the
+   requested orientation).
+ - [`--lock-video-orientation`](#lock-video-orientation) changes the mirroring
+   orientation (the orientation of the video sent from the device to the
+   computer). This affects the recording.
  - `--rotation` (or <kbd>MOD</kbd>+<kbd>←</kbd>/<kbd>MOD</kbd>+<kbd>→</kbd>)
    rotates only the window content. This affects only the display, not the
    recording.
@@ -548,6 +576,11 @@ into the device clipboard. As a consequence, any Android application could read
 its content. You should avoid to paste sensitive content (like passwords) that
 way.
 
+Some devices do not behave as expected when setting the device clipboard
+programmatically. An option `--legacy-paste` is provided to change the behavior
+of <kbd>Ctrl</kbd>+<kbd>v</kbd> and <kbd>MOD</kbd>+<kbd>v</kbd> so that they
+also inject the computer clipboard text as a sequence of key events (the same
+way as <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>v</kbd>).
 
 #### Pinch-to-zoom
 
@@ -592,6 +625,16 @@ To avoid forwarding repeated key events:
 
 ```bash
 scrcpy --no-key-repeat
+```
+
+
+#### Right-click and middle-click
+
+By default, right-click triggers BACK (or POWER on) and middle-click triggers
+HOME. To disable these shortcuts and forward the clicks to the device instead:
+
+```bash
+scrcpy --forward-all-clicks
 ```
 
 
@@ -729,7 +772,7 @@ Read the [developers page].
 ## Licence
 
     Copyright (C) 2018 Genymobile
-    Copyright (C) 2018-2020 Romain Vimont
+    Copyright (C) 2018-2021 Romain Vimont
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -755,8 +798,10 @@ Read the [developers page].
 
 This README is available in other languages:
 
-- [繁體中文 (Traditional Chinese, `zh-Hant`) - v1.15](README.zh-Hant.md)
+- [Indonesian (Indonesia, `id`) - v1.16](README.id.md)
 - [한국어 (Korean, `ko`) - v1.11](README.ko.md)
-- [português brasileiro (Brazilian Portuguese, `pt-BR`) - v1.12.1](README.pt-br.md)
+- [português brasileiro (Brazilian Portuguese, `pt-BR`) - v1.17](README.pt-br.md)
+- [简体中文 (Simplified Chinese, `zh-Hans`) - v1.17](README.zh-Hans.md)
+- [繁體中文 (Traditional Chinese, `zh-Hant`) - v1.15](README.zh-Hant.md)
 
 Only this README file is guaranteed to be up-to-date.

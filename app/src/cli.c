@@ -53,15 +53,29 @@ scrcpy_print_usage(const char *arg0) {
         "\n"
         "        Default is 0.\n"
         "\n"
+        "    --encoder name\n"
+        "        Use a specific MediaCodec encoder (must be a H.264 encoder).\n"
+        "\n"
         "    --force-adb-forward\n"
         "        Do not attempt to use \"adb reverse\" to connect to the\n"
         "        the device.\n"
+        "\n"
+        "    --forward-all-clicks\n"
+        "        By default, right-click triggers BACK (or POWER on) and\n"
+        "        middle-click triggers HOME. This option disables these\n"
+        "        shortcuts and forward the clicks to the device instead.\n"
         "\n"
         "    -f, --fullscreen\n"
         "        Start in fullscreen.\n"
         "\n"
         "    -h, --help\n"
         "        Print this help.\n"
+        "\n"
+        "    --legacy-paste\n"
+        "        Inject computer clipboard text as a sequence of key events\n"
+        "        on Ctrl+v (like MOD+Shift+v).\n"
+        "        This is a workaround for some devices not behaving as\n"
+        "        expected when setting the device clipboard programmatically.\n"
         "\n"
         "    --lock-video-orientation value\n"
         "        Lock video orientation to value.\n"
@@ -87,13 +101,13 @@ scrcpy_print_usage(const char *arg0) {
         "        Do not display device (only when screen recording is\n"
         "        enabled).\n"
         "\n"
+        "    --no-key-repeat\n"
+        "        Do not forward repeated key events when a key is held down.\n"
+        "\n"
         "    --no-mipmaps\n"
         "        If the renderer is OpenGL 3.0+ or OpenGL ES 2.0+, then\n"
         "        mipmaps are automatically generated to improve downscaling\n"
         "        quality. This option disables the generation of mipmaps.\n"
-        "\n"
-        "    --no-key-repeat\n"
-        "        Do not forward repeated key events when a key is held down.\n"
         "\n"
         "    -p, --port port[:port]\n"
         "        Set the TCP port (range) used by the client to listen.\n"
@@ -203,7 +217,7 @@ scrcpy_print_usage(const char *arg0) {
         "\n"
         "    In the following list, MOD is the shortcut modifier. By default,\n"
         "    it's (left) Alt or (left) Super, but it can be configured by\n"
-        "    --shortcut-mod.\n"
+        "    --shortcut-mod (see above).\n"
         "\n"
         "    MOD+f\n"
         "        Switch fullscreen mode\n"
@@ -532,7 +546,9 @@ parse_shortcut_mods_item(const char *item, size_t len) {
         } else if (STREQ("rsuper", item, key_len)) {
             mod |= SC_MOD_RSUPER;
         } else {
-            LOGW("Unknown modifier key: %.*s", (int) key_len, item);
+            LOGE("Unknown modifier key: %.*s "
+                 "(must be one of: lctrl, rctrl, lalt, ralt, lsuper, rsuper)",
+                 (int) key_len, item);
             return 0;
         }
 #undef STREQ
@@ -649,6 +665,9 @@ guess_record_format(const char *filename) {
 #define OPT_DISABLE_SCREENSAVER    1020
 #define OPT_SHORTCUT_MOD           1021
 #define OPT_NO_KEY_REPEAT          1022
+#define OPT_FORWARD_ALL_CLICKS     1023
+#define OPT_LEGACY_PASTE           1024
+#define OPT_ENCODER_NAME           1025
 
 bool
 scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
@@ -660,18 +679,22 @@ scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
         {"disable-screensaver",    no_argument,       NULL,
                                                   OPT_DISABLE_SCREENSAVER},
         {"display",                required_argument, NULL, OPT_DISPLAY_ID},
+        {"encoder",                required_argument, NULL, OPT_ENCODER_NAME},
         {"force-adb-forward",      no_argument,       NULL,
                                                   OPT_FORCE_ADB_FORWARD},
+        {"forward-all-clicks",     no_argument,       NULL,
+                                                  OPT_FORWARD_ALL_CLICKS},
         {"fullscreen",             no_argument,       NULL, 'f'},
         {"help",                   no_argument,       NULL, 'h'},
+        {"legacy-paste",           no_argument,       NULL, OPT_LEGACY_PASTE},
         {"lock-video-orientation", required_argument, NULL,
                                                   OPT_LOCK_VIDEO_ORIENTATION},
         {"max-fps",                required_argument, NULL, OPT_MAX_FPS},
         {"max-size",               required_argument, NULL, 'm'},
         {"no-control",             no_argument,       NULL, 'n'},
         {"no-display",             no_argument,       NULL, 'N'},
-        {"no-mipmaps",             no_argument,       NULL, OPT_NO_MIPMAPS},
         {"no-key-repeat",          no_argument,       NULL, OPT_NO_KEY_REPEAT},
+        {"no-mipmaps",             no_argument,       NULL, OPT_NO_MIPMAPS},
         {"port",                   required_argument, NULL, 'p'},
         {"prefer-text",            no_argument,       NULL, OPT_PREFER_TEXT},
         {"push-target",            required_argument, NULL, OPT_PUSH_TARGET},
@@ -843,6 +866,9 @@ scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
             case OPT_CODEC_OPTIONS:
                 opts->codec_options = optarg;
                 break;
+            case OPT_ENCODER_NAME:
+                opts->encoder_name = optarg;
+                break;
             case OPT_FORCE_ADB_FORWARD:
                 opts->force_adb_forward = true;
                 break;
@@ -853,6 +879,12 @@ scrcpy_parse_args(struct scrcpy_cli_args *args, int argc, char *argv[]) {
                 if (!parse_shortcut_mods(optarg, &opts->shortcut_mods)) {
                     return false;
                 }
+                break;
+            case OPT_FORWARD_ALL_CLICKS:
+                opts->forward_all_clicks = true;
+                break;
+            case OPT_LEGACY_PASTE:
+                opts->legacy_paste = true;
                 break;
             default:
                 // getopt prints the error message on stderr

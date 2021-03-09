@@ -1,9 +1,13 @@
-// for portability
-#define _POSIX_SOURCE // for kill()
-#define _BSD_SOURCE // for readlink()
+// for portability (kill, readlink, strdup, strtok_r)
+#define _POSIX_C_SOURCE 200809L
+#define _BSD_SOURCE
 
 // modern glibc will complain without this
 #define _DEFAULT_SOURCE
+
+#ifdef __APPLE__
+# define _DARWIN_C_SOURCE // for strdup(), strtok_r(), memset_pattern4()
+#endif
 
 #include "command.h"
 
@@ -17,7 +21,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 

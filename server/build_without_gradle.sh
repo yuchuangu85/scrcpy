@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # This script generates the scrcpy binary "manually" (without gradle).
 #
@@ -12,10 +12,10 @@
 set -e
 
 SCRCPY_DEBUG=false
-SCRCPY_VERSION_NAME=1.16
+SCRCPY_VERSION_NAME=1.17
 
-PLATFORM=${ANDROID_PLATFORM:-29}
-BUILD_TOOLS=${ANDROID_BUILD_TOOLS:-29.0.2}
+PLATFORM=${ANDROID_PLATFORM:-30}
+BUILD_TOOLS=${ANDROID_BUILD_TOOLS:-30.0.0}
 
 BUILD_DIR="$(realpath ${BUILD_DIR:-build_manual})"
 CLASSES_DIR="$BUILD_DIR/classes"

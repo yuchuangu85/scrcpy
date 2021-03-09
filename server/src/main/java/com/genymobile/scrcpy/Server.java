@@ -4,6 +4,7 @@ import com.genymobile.scrcpy.wrappers.ContentProvider;
 
 import android.graphics.Rect;
 import android.media.MediaCodec;
+import android.media.MediaCodecInfo;
 import android.os.BatteryManager;
 import android.os.Build;
 
@@ -26,7 +27,7 @@ public final class Server {
         boolean mustDisableShowTouchesOnCleanUp = false;
         int restoreStayOn = -1;
         if (options.getShowTouches() || options.getStayAwake()) {
-            try (ContentProvider settings = device.createSettingsProvider()) {
+            try (ContentProvider settings = Device.createSettingsProvider()) {
                 if (options.getShowTouches()) {
                     String oldValue = settings.getAndPutValue(ContentProvider.TABLE_SYSTEM, "show_touches", "1");
                     // If "show touches" was disabled, it must be disabled back on clean up
@@ -54,14 +55,17 @@ public final class Server {
         boolean tunnelForward = options.isTunnelForward();
 
         try (DesktopConnection connection = DesktopConnection.open(device, tunnelForward)) {
-            ScreenEncoder screenEncoder = new ScreenEncoder(options.getSendFrameMeta(), options.getBitRate(), options.getMaxFps(), codecOptions);
+            ScreenEncoder screenEncoder = new ScreenEncoder(options.getSendFrameMeta(), options.getBitRate(), options.getMaxFps(), codecOptions,
+                    options.getEncoderName());
 
+            Thread controllerThread = null;
+            Thread deviceMessageSenderThread = null;
             if (options.getControl()) {
                 final Controller controller = new Controller(device, connection);
 
                 // asynchronous
-                startController(controller);
-                startDeviceMessageSender(controller.getSender());
+                controllerThread = startController(controller);
+                deviceMessageSenderThread = startDeviceMessageSender(controller.getSender());
 
                 device.setClipboardListener(new Device.ClipboardListener() {
                     @Override
@@ -77,12 +81,19 @@ public final class Server {
             } catch (IOException e) {
                 // this is expected on close
                 Ln.d("Screen streaming stopped");
+            } finally {
+                if (controllerThread != null) {
+                    controllerThread.interrupt();
+                }
+                if (deviceMessageSenderThread != null) {
+                    deviceMessageSenderThread.interrupt();
+                }
             }
         }
     }
 
-    private static void startController(final Controller controller) {
-        new Thread(new Runnable() {
+    private static Thread startController(final Controller controller) {
+        Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -92,11 +103,13 @@ public final class Server {
                     Ln.d("Controller stopped");
                 }
             }
-        }).start();
+        });
+        thread.start();
+        return thread;
     }
 
-    private static void startDeviceMessageSender(final DeviceMessageSender sender) {
-        new Thread(new Runnable() {
+    private static Thread startDeviceMessageSender(final DeviceMessageSender sender) {
+        Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
@@ -106,7 +119,9 @@ public final class Server {
                     Ln.d("Device message sender stopped");
                 }
             }
-        }).start();
+        });
+        thread.start();
+        return thread;
     }
 
     private static Options createOptions(String... args) {
@@ -120,7 +135,7 @@ public final class Server {
                     "The server version (" + BuildConfig.VERSION_NAME + ") does not match the client " + "(" + clientVersion + ")");
         }
 
-        final int expectedParameters = 14;
+        final int expectedParameters = 15;
         if (args.length != expectedParameters) {
             throw new IllegalArgumentException("Expecting " + expectedParameters + " parameters");
         }
@@ -167,6 +182,9 @@ public final class Server {
         String codecOptions = args[13];
         options.setCodecOptions(codecOptions);
 
+        String encoderName = "-".equals(args[14]) ? null : args[14];
+        options.setEncoderName(encoderName);
+
         return options;
     }
 
@@ -204,6 +222,15 @@ public final class Server {
                 Ln.e("Try to use one of the available display ids:");
                 for (int id : displayIds) {
                     Ln.e("    scrcpy --display " + id);
+                }
+            }
+        } else if (e instanceof InvalidEncoderException) {
+            InvalidEncoderException iee = (InvalidEncoderException) e;
+            MediaCodecInfo[] encoders = iee.getAvailableEncoders();
+            if (encoders != null && encoders.length > 0) {
+                Ln.e("Try to use one of the available encoders:");
+                for (MediaCodecInfo encoder : encoders) {
+                    Ln.e("    scrcpy --encoder-name '" + encoder.getName() + "'");
                 }
             }
         }

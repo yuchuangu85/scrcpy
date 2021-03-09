@@ -39,12 +39,7 @@ cmd_execute(const char *const argv[], HANDLE *handle) {
         return PROCESS_ERROR_GENERIC;
     }
 
-#ifdef WINDOWS_NOCONSOLE
-    int flags = CREATE_NO_WINDOW;
-#else
-    int flags = 0;
-#endif
-    if (!CreateProcessW(NULL, wide, NULL, NULL, FALSE, flags, NULL, NULL, &si,
+    if (!CreateProcessW(NULL, wide, NULL, NULL, FALSE, 0, NULL, NULL, &si,
                         &pi)) {
         SDL_free(wide);
         *handle = NULL;
@@ -61,7 +56,7 @@ cmd_execute(const char *const argv[], HANDLE *handle) {
 
 bool
 cmd_terminate(HANDLE handle) {
-    return TerminateProcess(handle, 1) && CloseHandle(handle);
+    return TerminateProcess(handle, 1);
 }
 
 bool
@@ -75,6 +70,7 @@ cmd_simple_wait(HANDLE handle, DWORD *exit_code) {
     if (exit_code) {
         *exit_code = code;
     }
+    CloseHandle(handle);
     return !code;
 }
 

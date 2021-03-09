@@ -34,7 +34,7 @@
 #include "util/log.h"
 #include "util/net.h"
 
-static struct server server = SERVER_INITIALIZER;
+static struct server server;
 static struct screen screen = SCREEN_INITIALIZER;
 static struct fps_counter fps_counter;
 static struct video_buffer video_buffer;
@@ -304,6 +304,21 @@ av_log_callback(void *avcl, int level, const char *fmt, va_list vl) {
 
 bool
 scrcpy(const struct scrcpy_options *options) {
+    if (!server_init(&server)) {
+        return false;
+    }
+
+    bool ret = false;
+
+    bool server_started = false;
+    bool fps_counter_initialized = false;
+    bool video_buffer_initialized = false;
+    bool file_handler_initialized = false;
+    bool recorder_initialized = false;
+    bool stream_started = false;
+    bool controller_initialized = false;
+    bool controller_started = false;
+
     bool record = !!options->record_filename;
     struct server_params params = {
         .log_level = options->log_level,
@@ -318,21 +333,14 @@ scrcpy(const struct scrcpy_options *options) {
         .show_touches = options->show_touches,
         .stay_awake = options->stay_awake,
         .codec_options = options->codec_options,
+        .encoder_name = options->encoder_name,
         .force_adb_forward = options->force_adb_forward,
     };
     if (!server_start(&server, options->serial, &params)) {
-        return false;
+        goto end;
     }
 
-    bool ret = false;
-
-    bool fps_counter_initialized = false;
-    bool video_buffer_initialized = false;
-    bool file_handler_initialized = false;
-    bool recorder_initialized = false;
-    bool stream_started = false;
-    bool controller_initialized = false;
-    bool controller_started = false;
+    server_started = true;
 
     if (!sdl_init_and_configure(options->display, options->render_driver,
                                 options->disable_screensaver)) {
@@ -422,7 +430,7 @@ scrcpy(const struct scrcpy_options *options) {
                                    options->window_y, options->window_width,
                                    options->window_height,
                                    options->window_borderless,
-                                   options->rotation, options-> mipmaps)) {
+                                   options->rotation, options->mipmaps)) {
             goto end;
         }
 
@@ -464,8 +472,10 @@ end:
         fps_counter_interrupt(&fps_counter);
     }
 
-    // shutdown the sockets and kill the server
-    server_stop(&server);
+    if (server_started) {
+        // shutdown the sockets and kill the server
+        server_stop(&server);
+    }
 
     // now that the sockets are shutdown, the stream and controller are
     // interrupted, we can join them
