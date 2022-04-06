@@ -1,24 +1,40 @@
-# scrcpy (v1.17)
+# scrcpy (v1.23)
+
+<img src="app/data/icon.svg" width="128" height="128" alt="scrcpy" align="right" />
+
+_pronounced "**scr**een **c**o**py**"_
 
 [Read in another language](#translations)
 
-This application provides display and control of Android devices connected on
-USB (or [over TCP/IP][article-tcpip]). It does not require any _root_ access.
+This application provides display and control of Android devices connected via
+USB (or [over TCP/IP](#tcpip-wireless)). It does not require any _root_ access.
 It works on _GNU/Linux_, _Windows_ and _macOS_.
 
 ![screenshot](assets/screenshot-debian-600.jpg)
 
 It focuses on:
 
- - **lightness** (native, displays only the device screen)
- - **performance** (30~60fps)
- - **quality** (1920×1080 or above)
- - **low latency** ([35~70ms][lowlatency])
- - **low startup time** (~1 second to display the first image)
- - **non-intrusiveness** (nothing is left installed on the device)
+ - **lightness**: native, displays only the device screen
+ - **performance**: 30~120fps, depending on the device
+ - **quality**: 1920×1080 or above
+ - **low latency**: [35~70ms][lowlatency]
+ - **low startup time**: ~1 second to display the first image
+ - **non-intrusiveness**: nothing is left installed on the device
+ - **user benefits**: no account, no ads, no internet required
+ - **freedom**: free and open source software
 
 [lowlatency]: https://github.com/Genymobile/scrcpy/pull/646
 
+Its features include:
+ - [recording](#recording)
+ - mirroring with [device screen off](#turn-screen-off)
+ - [copy-paste](#copy-paste) in both directions
+ - [configurable quality](#capture-configuration)
+ - device screen [as a webcam (V4L2)](#v4l2loopback) (Linux-only)
+ - [physical keyboard simulation (HID)](#physical-keyboard-simulation-hid)
+ - [physical mouse simulation (HID)](#physical-mouse-simulation-hid)
+ - [OTG mode](#otg)
+ - and more…
 
 ## Requirements
 
@@ -38,12 +54,30 @@ control it using keyboard and mouse.
 
 <a href="https://repology.org/project/scrcpy/versions"><img src="https://repology.org/badge/vertical-allrepos/scrcpy.svg" alt="Packaging status" align="right"></a>
 
+### Summary
+
+ - Linux: `apt install scrcpy`
+ - Windows: [download][direct-win64]
+ - macOS: `brew install scrcpy`
+
+Build from sources: [BUILD] ([simplified process][BUILD_simple])
+
+[BUILD]: BUILD.md
+[BUILD_simple]: BUILD.md#simple
+
+
 ### Linux
 
-On Debian (_testing_ and _sid_ for now) and Ubuntu (20.04):
+On Debian and Ubuntu:
 
 ```
 apt install scrcpy
+```
+
+On Arch Linux:
+
+```
+pacman -S scrcpy
 ```
 
 A [Snap] package is available: [`scrcpy`][snap-link].
@@ -57,19 +91,14 @@ For Fedora, a [COPR] package is available: [`scrcpy`][copr-link].
 [COPR]: https://fedoraproject.org/wiki/Category:Copr
 [copr-link]: https://copr.fedorainfracloud.org/coprs/zeno/scrcpy/
 
-For Arch Linux, an [AUR] package is available: [`scrcpy`][aur-link].
-
-[AUR]: https://wiki.archlinux.org/index.php/Arch_User_Repository
-[aur-link]: https://aur.archlinux.org/packages/scrcpy/
 
 For Gentoo, an [Ebuild] is available: [`scrcpy/`][ebuild-link].
 
 [Ebuild]: https://wiki.gentoo.org/wiki/Ebuild
 [ebuild-link]: https://github.com/maggu2810/maggu2810-overlay/tree/master/app-mobilephone/scrcpy
 
-You could also [build the app manually][BUILD] (don't worry, it's not that
-hard).
-
+You could also [build the app manually][BUILD] ([simplified
+process][BUILD_simple]).
 
 
 ### Windows
@@ -77,10 +106,10 @@ hard).
 For Windows, for simplicity, a prebuilt archive with all the dependencies
 (including `adb`) is available:
 
- - [`scrcpy-win64-v1.17.zip`][direct-win64]  
-   _(SHA-256: 8b9e57993c707367ed10ebfe0e1ef563c7a29d9af4a355cd8b6a52a317c73eea)_
+ - [`scrcpy-win64-v1.23.zip`][direct-win64]  
+   _(SHA-256: d2f601b1d0157faf65153d8a093d827fd65aec5d5842d677ac86fb2b5b7704cc)_
 
-[direct-win64]: https://github.com/Genymobile/scrcpy/releases/download/v1.17/scrcpy-win64-v1.17.zip
+[direct-win64]: https://github.com/Genymobile/scrcpy/releases/download/v1.23/scrcpy-win64-v1.23.zip
 
 It is also available in [Chocolatey]:
 
@@ -116,12 +145,17 @@ brew install scrcpy
 You need `adb`, accessible from your `PATH`. If you don't have it yet:
 
 ```bash
-# Homebrew >= 2.6.0
-brew install --cask android-platform-tools
-
-# Homebrew < 2.6.0
-brew cask install android-platform-tools
+brew install android-platform-tools
 ```
+
+It's also available in [MacPorts], which sets up adb for you:
+
+```bash
+sudo port install scrcpy
+```
+
+[MacPorts]: https://www.macports.org/
+
 
 You can also [build the app manually][BUILD].
 
@@ -179,6 +213,15 @@ scrcpy --max-fps 15
 
 This is officially supported since Android 10, but may work on earlier versions.
 
+The actual capture framerate may be printed to the console:
+
+```
+scrcpy --print-fps
+```
+
+It may also be enabled or disabled at any time with <kbd>MOD</kbd>+<kbd>i</kbd>.
+
+
 #### Crop
 
 The device screen may be cropped to mirror only part of the screen.
@@ -198,10 +241,11 @@ If `--max-size` is also specified, resizing is applied after cropping.
 To lock the orientation of the mirroring:
 
 ```bash
-scrcpy --lock-video-orientation 0   # natural orientation
-scrcpy --lock-video-orientation 1   # 90° counterclockwise
-scrcpy --lock-video-orientation 2   # 180°
-scrcpy --lock-video-orientation 3   # 90° clockwise
+scrcpy --lock-video-orientation     # initial (current) orientation
+scrcpy --lock-video-orientation=0   # natural orientation
+scrcpy --lock-video-orientation=1   # 90° counterclockwise
+scrcpy --lock-video-orientation=2   # 180°
+scrcpy --lock-video-orientation=3   # 90° clockwise
 ```
 
 This affects recording orientation.
@@ -225,7 +269,9 @@ error will give the available encoders:
 scrcpy --encoder _
 ```
 
-### Recording
+### Capture
+
+#### Recording
 
 It is possible to record the screen while mirroring:
 
@@ -249,25 +295,139 @@ variation] does not impact the recorded file.
 [packet delay variation]: https://en.wikipedia.org/wiki/Packet_delay_variation
 
 
+#### v4l2loopback
+
+On Linux, it is possible to send the video stream to a v4l2 loopback device, so
+that the Android device can be opened like a webcam by any v4l2-capable tool.
+
+The module `v4l2loopback` must be installed:
+
+```bash
+sudo apt install v4l2loopback-dkms
+```
+
+To create a v4l2 device:
+
+```bash
+sudo modprobe v4l2loopback
+```
+
+This will create a new video device in `/dev/videoN`, where `N` is an integer
+(more [options](https://github.com/umlaeute/v4l2loopback#options) are available
+to create several devices or devices with specific IDs).
+
+To list the enabled devices:
+
+```bash
+# requires v4l-utils package
+v4l2-ctl --list-devices
+
+# simple but might be sufficient
+ls /dev/video*
+```
+
+To start scrcpy using a v4l2 sink:
+
+```bash
+scrcpy --v4l2-sink=/dev/videoN
+scrcpy --v4l2-sink=/dev/videoN --no-display  # disable mirroring window
+scrcpy --v4l2-sink=/dev/videoN -N            # short version
+```
+
+(replace `N` by the device ID, check with `ls /dev/video*`)
+
+Once enabled, you can open your video stream with a v4l2-capable tool:
+
+```bash
+ffplay -i /dev/videoN
+vlc v4l2:///dev/videoN   # VLC might add some buffering delay
+```
+
+For example, you could capture the video within [OBS].
+
+[OBS]: https://obsproject.com/
+
+
+#### Buffering
+
+It is possible to add buffering. This increases latency but reduces jitter (see
+[#2464]).
+
+[#2464]: https://github.com/Genymobile/scrcpy/issues/2464
+
+The option is available for display buffering:
+
+```bash
+scrcpy --display-buffer=50  # add 50 ms buffering for display
+```
+
+and V4L2 sink:
+
+```bash
+scrcpy --v4l2-buffer=500    # add 500 ms buffering for v4l2 sink
+```
+
+
 ### Connection
 
-#### Wireless
+#### TCP/IP (wireless)
 
 _Scrcpy_ uses `adb` to communicate with the device, and `adb` can [connect] to a
-device over TCP/IP:
+device over TCP/IP. The device must be connected on the same network as the
+computer.
 
-1. Connect the device to the same Wi-Fi as your computer.
-2. Get your device IP address, in Settings → About phone → Status, or by
+##### Automatic
+
+An option `--tcpip` allows to configure the connection automatically. There are
+two variants.
+
+If the device (accessible at 192.168.1.1 in this example) already listens on a
+port (typically 5555) for incoming adb connections, then run:
+
+```bash
+scrcpy --tcpip=192.168.1.1       # default port is 5555
+scrcpy --tcpip=192.168.1.1:5555
+```
+
+If adb TCP/IP mode is disabled on the device (or if you don't know the IP
+address), connect the device over USB, then run:
+
+```bash
+scrcpy --tcpip    # without arguments
+```
+
+It will automatically find the device IP address, enable TCP/IP mode, then
+connect to the device before starting.
+
+##### Manual
+
+Alternatively, it is possible to enable the TCP/IP connection manually using
+`adb`:
+
+1. Plug the device into a USB port on your computer.
+2. Connect the device to the same Wi-Fi network as your computer.
+3. Get your device IP address, in Settings → About phone → Status, or by
    executing this command:
 
     ```bash
     adb shell ip route | awk '{print $9}'
     ```
 
-3. Enable adb over TCP/IP on your device: `adb tcpip 5555`.
-4. Unplug your device.
-5. Connect to your device: `adb connect DEVICE_IP:5555` _(replace `DEVICE_IP`)_.
-6. Run `scrcpy` as usual.
+4. Enable adb over TCP/IP on your device: `adb tcpip 5555`.
+5. Unplug your device.
+6. Connect to your device: `adb connect DEVICE_IP:5555` _(replace `DEVICE_IP`
+with the device IP address you found)_.
+7. Run `scrcpy` as usual.
+
+Since Android 11, a [Wireless debugging option][adb-wireless] allows to bypass
+having to physically connect your device directly to your computer.
+
+[adb-wireless]: https://developer.android.com/studio/command-line/adb#connect-to-a-device-over-wi-fi-android-11+
+
+If the connection randomly drops, run your `scrcpy` command to reconnect. If it
+says there are no devices/emulators found, try running `adb connect
+DEVICE_IP:5555` again, and then `scrcpy` as usual. If it still says there are
+none found, try running `adb disconnect` and then run those two commands again.
 
 It may be useful to decrease the bit-rate and the definition:
 
@@ -281,7 +441,7 @@ scrcpy -b2M -m800  # short version
 
 #### Multi-devices
 
-If several devices are listed in `adb devices`, you must specify the _serial_:
+If several devices are listed in `adb devices`, you can specify the _serial_:
 
 ```bash
 scrcpy --serial 0123456789abcdef
@@ -293,6 +453,19 @@ If the device is connected over TCP/IP:
 ```bash
 scrcpy --serial 192.168.0.1:5555
 scrcpy -s 192.168.0.1:5555  # short version
+```
+
+If only one device is connected via either USB or TCP/IP, it is possible to
+select it automatically:
+
+```bash
+# Select the only device connected via USB
+scrcpy -d             # like adb -d
+scrcpy --select-usb   # long version
+
+# Select the only device connected via TCP/IP
+scrcpy -e             # like adb -e
+scrcpy --select-tcpip # long version
 ```
 
 You can start several instances of _scrcpy_ for several devices.
@@ -307,21 +480,66 @@ autoadb scrcpy -s '{}'
 
 [AutoAdb]: https://github.com/rom1v/autoadb
 
-#### SSH tunnel
+#### Tunnels
 
 To connect to a remote device, it is possible to connect a local `adb` client to
 a remote `adb` server (provided they use the same version of the _adb_
-protocol):
+protocol).
+
+##### Remote ADB server
+
+To connect to a remote ADB server, make the server listen on all interfaces:
 
 ```bash
-adb kill-server    # kill the local adb server on 5037
-ssh -CN -L5037:localhost:5037 -R27183:localhost:27183 your_remote_computer
+adb kill-server
+adb -a nodaemon server start
 # keep this open
 ```
 
-From another terminal:
+**Warning: all communications between clients and ADB server are unencrypted.**
+
+Suppose that this server is accessible at 192.168.1.2. Then, from another
+terminal, run scrcpy:
 
 ```bash
+export ADB_SERVER_SOCKET=tcp:192.168.1.2:5037
+scrcpy --tunnel-host=192.168.1.2
+```
+
+By default, scrcpy uses the local port used for `adb forward` tunnel
+establishment (typically `27183`, see `--port`). It is also possible to force a
+different tunnel port (it may be useful in more complex situations, when more
+redirections are involved):
+
+```
+scrcpy --tunnel-port=1234
+```
+
+
+##### SSH tunnel
+
+To communicate with a remote ADB server securely, it is preferable to use a SSH
+tunnel.
+
+First, make sure the ADB server is running on the remote computer:
+
+```bash
+adb start-server
+```
+
+Then, establish a SSH tunnel:
+
+```bash
+# local  5038 --> remote  5037
+# local 27183 <-- remote 27183
+ssh -CN -L5038:localhost:5037 -R27183:localhost:27183 your_remote_computer
+# keep this open
+```
+
+From another terminal, run scrcpy:
+
+```bash
+export ADB_SERVER_SOCKET=tcp:localhost:5038
 scrcpy
 ```
 
@@ -329,14 +547,16 @@ To avoid enabling remote port forwarding, you could force a forward connection
 instead (notice the `-L` instead of `-R`):
 
 ```bash
-adb kill-server    # kill the local adb server on 5037
-ssh -CN -L5037:localhost:5037 -L27183:localhost:27183 your_remote_computer
+# local  5038 --> remote  5037
+# local 27183 --> remote 27183
+ssh -CN -L5038:localhost:5037 -L27183:localhost:27183 your_remote_computer
 # keep this open
 ```
 
-From another terminal:
+From another terminal, run scrcpy:
 
 ```bash
+export ADB_SERVER_SOCKET=tcp:localhost:5038
 scrcpy --force-adb-forward
 ```
 
@@ -411,7 +631,7 @@ _(left)_ and <kbd>MOD</kbd>+<kbd>→</kbd> _(right)_.
 
 Note that _scrcpy_ manages 3 different rotations:
  - <kbd>MOD</kbd>+<kbd>r</kbd> requests the device to switch between portrait
-   and landscape (the current running app may refuse, if it does support the
+   and landscape (the current running app may refuse, if it does not support the
    requested orientation).
  - [`--lock-video-orientation`](#lock-video-orientation) changes the mirroring
    orientation (the orientation of the video sent from the device to the
@@ -444,7 +664,7 @@ scrcpy --display 1
 
 The list of display ids can be retrieved by:
 
-```
+```bash
 adb shell dumpsys display   # search "mDisplayId=" in the output
 ```
 
@@ -490,18 +710,14 @@ scrcpy --turn-screen-off --stay-awake
 scrcpy -Sw
 ```
 
+#### Power off on close
 
-#### Render expired frames
-
-By default, to minimize latency, _scrcpy_ always renders the last decoded frame
-available, and drops any previous one.
-
-To force the rendering of all frames (at a cost of a possible increased
-latency), use:
+To turn the device screen off when closing scrcpy:
 
 ```bash
-scrcpy --render-expired-frames
+scrcpy --power-off-on-close
 ```
+
 
 #### Show touches
 
@@ -582,6 +798,9 @@ of <kbd>Ctrl</kbd>+<kbd>v</kbd> and <kbd>MOD</kbd>+<kbd>v</kbd> so that they
 also inject the computer clipboard text as a sequence of key events (the same
 way as <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>v</kbd>).
 
+To disable automatic clipboard synchronization, use
+`--no-clipboard-autosync`.
+
 #### Pinch-to-zoom
 
 To simulate "pinch-to-zoom": <kbd>Ctrl</kbd>+_click-and-move_.
@@ -592,6 +811,109 @@ content (if supported by the app) relative to the center of the screen.
 
 Concretely, scrcpy generates additional touch events from a "virtual finger" at
 a location inverted through the center of the screen.
+
+#### Physical keyboard simulation (HID)
+
+By default, scrcpy uses Android key or text injection: it works everywhere, but
+is limited to ASCII.
+
+Alternatively, scrcpy can simulate a physical USB keyboard on Android to provide
+a better input experience (using [USB HID over AOAv2][hid-aoav2]): the virtual
+keyboard is disabled and it works for all characters and IME.
+
+[hid-aoav2]: https://source.android.com/devices/accessories/aoa2#hid-support
+
+However, it only works if the device is connected by USB.
+
+Note: On Windows, it may only work in [OTG mode](#otg), not while mirroring (it
+is not possible to open a USB device if it is already open by another process
+like the adb daemon).
+
+To enable this mode:
+
+```bash
+scrcpy --hid-keyboard
+scrcpy -K  # short version
+```
+
+If it fails for some reason (for example because the device is not connected via
+USB), it automatically fallbacks to the default mode (with a log in the
+console). This allows to use the same command line options when connected over
+USB and TCP/IP.
+
+In this mode, raw key events (scancodes) are sent to the device, independently
+of the host key mapping. Therefore, if your keyboard layout does not match, it
+must be configured on the Android device, in Settings → System → Languages and
+input → [Physical keyboard].
+
+This settings page can be started directly:
+
+```bash
+adb shell am start -a android.settings.HARD_KEYBOARD_SETTINGS
+```
+
+However, the option is only available when the HID keyboard is enabled (or when
+a physical keyboard is connected).
+
+[Physical keyboard]: https://github.com/Genymobile/scrcpy/pull/2632#issuecomment-923756915
+
+#### Physical mouse simulation (HID)
+
+Similarly to the physical keyboard simulation, it is possible to simulate a
+physical mouse. Likewise, it only works if the device is connected by USB.
+
+By default, scrcpy uses Android mouse events injection, using absolute
+coordinates. By simulating a physical mouse, a mouse pointer appears on the
+Android device, and relative mouse motion, clicks and scrolls are injected.
+
+To enable this mode:
+
+```bash
+scrcpy --hid-mouse
+scrcpy -M  # short version
+```
+
+You could also add `--forward-all-clicks` to [forward all mouse
+buttons][forward_all_clicks].
+
+[forward_all_clicks]: #right-click-and-middle-click
+
+When this mode is enabled, the computer mouse is "captured" (the mouse pointer
+disappears from the computer and appears on the Android device instead).
+
+Special capture keys, either <kbd>Alt</kbd> or <kbd>Super</kbd>, toggle
+(disable or enable) the mouse capture. Use one of them to give the control of
+the mouse back to the computer.
+
+
+#### OTG
+
+It is possible to run _scrcpy_ with only physical keyboard and mouse simulation
+(HID), as if the computer keyboard and mouse were plugged directly to the device
+via an OTG cable.
+
+In this mode, _adb_ (USB debugging) is not necessary, and mirroring is disabled.
+
+To enable OTG mode:
+
+```bash
+scrcpy --otg
+# Pass the serial if several USB devices are available
+scrcpy --otg -s 0123456789abcdef
+```
+
+It is possible to enable only HID keyboard or HID mouse:
+
+```bash
+scrcpy --otg --hid-keyboard              # keyboard only
+scrcpy --otg --hid-mouse                 # mouse only
+scrcpy --otg --hid-keyboard --hid-mouse  # keyboard and mouse
+# for convenience, enable both by default
+scrcpy --otg                             # keyboard and mouse
+```
+
+Like `--hid-keyboard` and `--hid-mouse`, it only works if the device is
+connected by USB.
 
 
 #### Text injection preference
@@ -612,6 +934,15 @@ scrcpy --prefer-text
 
 (but this will break keyboard behavior in games)
 
+On the contrary, you could force to always inject raw key events:
+
+```bash
+scrcpy --raw-key-events
+```
+
+These options have no effect on HID keyboard (all key events are sent as
+scancodes in this mode).
+
 [textevents]: https://blog.rom1v.com/2018/03/introducing-scrcpy/#handle-text-input
 [prefertext]: https://github.com/Genymobile/scrcpy/issues/650#issuecomment-512945343
 
@@ -626,6 +957,9 @@ To avoid forwarding repeated key events:
 ```bash
 scrcpy --no-key-repeat
 ```
+
+This option has no effect on HID keyboard (key repeat is handled by Android
+directly in this mode).
 
 
 #### Right-click and middle-click
@@ -650,15 +984,15 @@ There is no visual feedback, a log is printed to the console.
 
 #### Push file to device
 
-To push a file to `/sdcard/` on the device, drag & drop a (non-APK) file to the
-_scrcpy_ window.
+To push a file to `/sdcard/Download/` on the device, drag & drop a (non-APK)
+file to the _scrcpy_ window.
 
 There is no visual feedback, a log is printed to the console.
 
 The target directory can be changed on start:
 
 ```bash
-scrcpy --push-target /sdcard/foo/bar/
+scrcpy --push-target=/sdcard/Movies/
 ```
 
 
@@ -698,11 +1032,11 @@ _<kbd>[Super]</kbd> is typically the <kbd>Windows</kbd> or <kbd>Cmd</kbd> key._
  | Rotate display left                         | <kbd>MOD</kbd>+<kbd>←</kbd> _(left)_
  | Rotate display right                        | <kbd>MOD</kbd>+<kbd>→</kbd> _(right)_
  | Resize window to 1:1 (pixel-perfect)        | <kbd>MOD</kbd>+<kbd>g</kbd>
- | Resize window to remove black borders       | <kbd>MOD</kbd>+<kbd>w</kbd> \| _Double-click¹_
+ | Resize window to remove black borders       | <kbd>MOD</kbd>+<kbd>w</kbd> \| _Double-left-click¹_
  | Click on `HOME`                             | <kbd>MOD</kbd>+<kbd>h</kbd> \| _Middle-click_
  | Click on `BACK`                             | <kbd>MOD</kbd>+<kbd>b</kbd> \| _Right-click²_
- | Click on `APP_SWITCH`                       | <kbd>MOD</kbd>+<kbd>s</kbd>
- | Click on `MENU` (unlock screen)             | <kbd>MOD</kbd>+<kbd>m</kbd>
+ | Click on `APP_SWITCH`                       | <kbd>MOD</kbd>+<kbd>s</kbd> \| _4th-click³_
+ | Click on `MENU` (unlock screen)⁴            | <kbd>MOD</kbd>+<kbd>m</kbd>
  | Click on `VOLUME_UP`                        | <kbd>MOD</kbd>+<kbd>↑</kbd> _(up)_
  | Click on `VOLUME_DOWN`                      | <kbd>MOD</kbd>+<kbd>↓</kbd> _(down)_
  | Click on `POWER`                            | <kbd>MOD</kbd>+<kbd>p</kbd>
@@ -710,18 +1044,30 @@ _<kbd>[Super]</kbd> is typically the <kbd>Windows</kbd> or <kbd>Cmd</kbd> key._
  | Turn device screen off (keep mirroring)     | <kbd>MOD</kbd>+<kbd>o</kbd>
  | Turn device screen on                       | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>o</kbd>
  | Rotate device screen                        | <kbd>MOD</kbd>+<kbd>r</kbd>
- | Expand notification panel                   | <kbd>MOD</kbd>+<kbd>n</kbd>
- | Collapse notification panel                 | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>n</kbd>
- | Copy to clipboard³                          | <kbd>MOD</kbd>+<kbd>c</kbd>
- | Cut to clipboard³                           | <kbd>MOD</kbd>+<kbd>x</kbd>
- | Synchronize clipboards and paste³           | <kbd>MOD</kbd>+<kbd>v</kbd>
+ | Expand notification panel                   | <kbd>MOD</kbd>+<kbd>n</kbd> \| _5th-click³_
+ | Expand settings panel                       | <kbd>MOD</kbd>+<kbd>n</kbd>+<kbd>n</kbd> \| _Double-5th-click³_
+ | Collapse panels                             | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>n</kbd>
+ | Copy to clipboard⁵                          | <kbd>MOD</kbd>+<kbd>c</kbd>
+ | Cut to clipboard⁵                           | <kbd>MOD</kbd>+<kbd>x</kbd>
+ | Synchronize clipboards and paste⁵           | <kbd>MOD</kbd>+<kbd>v</kbd>
  | Inject computer clipboard text              | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>v</kbd>
  | Enable/disable FPS counter (on stdout)      | <kbd>MOD</kbd>+<kbd>i</kbd>
  | Pinch-to-zoom                               | <kbd>Ctrl</kbd>+_click-and-move_
+ | Drag & drop APK file                        | Install APK from computer
+ | Drag & drop non-APK file                    | [Push file to device](#push-file-to-device)
 
 _¹Double-click on black borders to remove them._  
 _²Right-click turns the screen on if it was off, presses BACK otherwise._  
-_³Only on Android >= 7._
+_³4th and 5th mouse buttons, if your mouse has them._  
+_⁴For react-native apps in development, `MENU` triggers development menu._  
+_⁵Only on Android >= 7._
+
+Shortcuts with repeated keys are executted by releasing and pressing the key a
+second time. For example, to execute "Expand settings panel":
+
+ 1. Press and keep pressing <kbd>MOD</kbd>.
+ 2. Then double-press <kbd>n</kbd>.
+ 3. Finally, release <kbd>MOD</kbd>.
 
 All <kbd>Ctrl</kbd>+_key_ shortcuts are forwarded to the device, so they are
 handled by the active application.
@@ -732,12 +1078,14 @@ handled by the active application.
 To use a specific _adb_ binary, configure its path in the environment variable
 `ADB`:
 
-    ADB=/path/to/adb scrcpy
+```bash
+ADB=/path/to/adb scrcpy
+```
 
 To override the path of the `scrcpy-server` file, configure its path in
 `SCRCPY_SERVER_PATH`.
 
-[useful]: https://github.com/Genymobile/scrcpy/issues/278#issuecomment-429330345
+To override the icon, configure its path in `SCRCPY_ICON_PATH`.
 
 
 ## Why _scrcpy_?
@@ -754,12 +1102,12 @@ A colleague challenged me to find a name as unpronounceable as [gnirehtet].
 
 See [BUILD].
 
-[BUILD]: BUILD.md
-
 
 ## Common issues
 
-See the [FAQ](FAQ.md).
+See the [FAQ].md).
+
+[FAQ]: FAQ.md
 
 
 ## Developers
@@ -772,7 +1120,7 @@ Read the [developers page].
 ## Licence
 
     Copyright (C) 2018 Genymobile
-    Copyright (C) 2018-2021 Romain Vimont
+    Copyright (C) 2018-2022 Romain Vimont
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -794,14 +1142,30 @@ Read the [developers page].
 [article-intro]: https://blog.rom1v.com/2018/03/introducing-scrcpy/
 [article-tcpip]: https://www.genymotion.com/blog/open-source-project-scrcpy-now-works-wirelessly/
 
+## Contact
+
+If you encounter a bug, please read the [FAQ] first, then open an [issue].
+
+[issue]: https://github.com/Genymobile/scrcpy/issues
+
+For general questions or discussions, you could also use:
+
+ - Reddit: [`r/scrcpy`](https://www.reddit.com/r/scrcpy)
+ - Twitter: [`@scrcpy_app`](https://twitter.com/scrcpy_app)
+
 ## Translations
 
 This README is available in other languages:
 
+- [Deutsch (German, `de`) - v1.22](README.de.md)
 - [Indonesian (Indonesia, `id`) - v1.16](README.id.md)
+- [Italiano (Italiano, `it`) - v1.19](README.it.md)
+- [日本語 (Japanese, `jp`) - v1.19](README.jp.md)
 - [한국어 (Korean, `ko`) - v1.11](README.ko.md)
-- [português brasileiro (Brazilian Portuguese, `pt-BR`) - v1.17](README.pt-br.md)
-- [简体中文 (Simplified Chinese, `zh-Hans`) - v1.17](README.zh-Hans.md)
+- [Português Brasileiro (Brazilian Portuguese, `pt-BR`) - v1.19](README.pt-br.md)
+- [Español (Spanish, `sp`) - v1.21](README.sp.md)
+- [简体中文 (Simplified Chinese, `zh-Hans`) - v1.22](README.zh-Hans.md)
 - [繁體中文 (Traditional Chinese, `zh-Hant`) - v1.15](README.zh-Hant.md)
+- [Turkish (Turkish, `tr`) - v1.18](README.tr.md)
 
 Only this README file is guaranteed to be up-to-date.

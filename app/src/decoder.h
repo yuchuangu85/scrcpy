@@ -1,31 +1,30 @@
-#ifndef DECODER_H
-#define DECODER_H
+#ifndef SC_DECODER_H
+#define SC_DECODER_H
+
+#include "common.h"
+
+#include "trait/packet_sink.h"
 
 #include <stdbool.h>
+#include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 
-#include "config.h"
+#define SC_DECODER_MAX_SINKS 2
 
-struct video_buffer;
+struct sc_decoder {
+    struct sc_packet_sink packet_sink; // packet sink trait
 
-struct decoder {
-    struct video_buffer *video_buffer;
+    struct sc_frame_sink *sinks[SC_DECODER_MAX_SINKS];
+    unsigned sink_count;
+
     AVCodecContext *codec_ctx;
+    AVFrame *frame;
 };
 
 void
-decoder_init(struct decoder *decoder, struct video_buffer *vb);
-
-bool
-decoder_open(struct decoder *decoder, const AVCodec *codec);
+sc_decoder_init(struct sc_decoder *decoder);
 
 void
-decoder_close(struct decoder *decoder);
-
-bool
-decoder_push(struct decoder *decoder, const AVPacket *packet);
-
-void
-decoder_interrupt(struct decoder *decoder);
+sc_decoder_add_sink(struct sc_decoder *decoder, struct sc_frame_sink *sink);
 
 #endif

@@ -2,11 +2,12 @@
 
 [binaries]
 name = 'mingw'
-c = '/usr/bin/i686-w64-mingw32-gcc'
-cpp = '/usr/bin/i686-w64-mingw32-g++'
-ar = '/usr/bin/i686-w64-mingw32-ar'
-strip = '/usr/bin/i686-w64-mingw32-strip'
-pkgconfig = '/usr/bin/i686-w64-mingw32-pkg-config'
+c = 'i686-w64-mingw32-gcc'
+cpp = 'i686-w64-mingw32-g++'
+ar = 'i686-w64-mingw32-ar'
+strip = 'i686-w64-mingw32-strip'
+pkgconfig = 'i686-w64-mingw32-pkg-config'
+windres = 'i686-w64-mingw32-windres'
 
 [host_machine]
 system = 'windows'
@@ -15,6 +16,10 @@ cpu = 'i686'
 endian = 'little'
 
 [properties]
-prebuilt_ffmpeg_shared = 'ffmpeg-4.3.1-win32-shared'
-prebuilt_ffmpeg_dev = 'ffmpeg-4.3.1-win32-dev'
-prebuilt_sdl2 = 'SDL2-2.0.14/i686-w64-mingw32'
+ffmpeg_avcodec = 'avcodec-58'
+ffmpeg_avformat = 'avformat-58'
+ffmpeg_avutil = 'avutil-56'
+prebuilt_ffmpeg = 'ffmpeg-win32-4.3.1'
+prebuilt_sdl2 = 'SDL2-2.0.20/i686-w64-mingw32'
+prebuilt_libusb_root = 'libusb-1.0.25'
+prebuilt_libusb = prebuilt_libusb_root + '/MinGW32'

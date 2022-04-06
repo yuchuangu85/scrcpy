@@ -1,28 +1,46 @@
 _Only the original [README](README.md) is guaranteed to be up-to-date._
 
-只有原版的[README](README.md)会保持最新。
+_只有原版的 [README](README.md)是保证最新的。_
 
-本文根据[ed130e05]进行翻译。
+Current version is based on [f4c7044]
 
-[ed130e05]: https://github.com/Genymobile/scrcpy/blob/ed130e05d55615d6014d93f15cfcb92ad62b01d8/README.md
+本文根据[f4c7044]进行翻译。
 
-# scrcpy (v1.17)
+[f4c7044]: https://github.com/Genymobile/scrcpy/blob/f4c7044b46ae28eb64cb5e1a15c9649a44023c70/README.md
+
+# scrcpy (v1.22)
+
+<img src="data/icon.svg" width="128" height="128" alt="scrcpy" align="right" />
+
+_发音为 "**scr**een **c**o**py**"_
 
 本应用程序可以显示并控制通过 USB (或 [TCP/IP][article-tcpip]) 连接的安卓设备，且不需要任何 _root_ 权限。本程序支持 _GNU/Linux_, _Windows_ 和 _macOS_。
 
 ![screenshot](assets/screenshot-debian-600.jpg)
 
-它专注于：
+本应用专注于：
 
- - **轻量** (原生，仅显示设备屏幕)
- - **性能** (30~60fps)
- - **质量** (分辨率可达 1920×1080 或更高)
- - **低延迟** ([35~70ms][lowlatency])
- - **快速启动** (最快 1 秒内即可显示第一帧)
- - **无侵入性** (不会在设备上遗留任何程序)
+ - **轻量**： 原生，仅显示设备屏幕
+ - **性能**： 30~120fps，取决于设备
+ - **质量**： 分辨率可达 1920×1080 或更高
+ - **低延迟**： [35~70ms][lowlatency]
+ - **快速启动**： 最快 1 秒内即可显示第一帧
+ - **无侵入性**： 不会在设备上遗留任何程序
+ - **用户利益**： 无需帐号，无广告，无需联网
+ - **自由**： 自由和开源软件
 
 [lowlatency]: https://github.com/Genymobile/scrcpy/pull/646
 
+功能：
+ - [屏幕录制](#屏幕录制)
+ - 镜像时[关闭设备屏幕](#关闭设备屏幕)
+ - 双向[复制粘贴](#复制粘贴)
+ - [可配置显示质量](#采集设置)
+ - 以设备屏幕[作为摄像头(V4L2)](#v4l2loopback) (仅限 Linux)
+ - [模拟物理键盘 (HID)](#物理键盘模拟-hid) (仅限 Linux)
+ - [物理鼠标模拟 (HID)](#物理鼠标模拟-hid) (仅限 Linux)
+ - [OTG模式](#otg) (仅限 Linux)
+ - 更多 ……
 
 ## 系统要求
 
@@ -41,12 +59,29 @@ _Only the original [README](README.md) is guaranteed to be up-to-date._
 
 <a href="https://repology.org/project/scrcpy/versions"><img src="https://repology.org/badge/vertical-allrepos/scrcpy.svg" alt="Packaging status" align="right"></a>
 
+### 概要
+
+ - Linux: `apt install scrcpy`
+ - Windows: [下载][direct-win64]
+ - macOS: `brew install scrcpy`
+
+从源代码编译: [构建][BUILD] ([简化过程][BUILD_simple])
+
+[BUILD]: BUILD.md
+[BUILD_simple]: BUILD.md#simple
+
 ### Linux
 
-在 Debian (目前仅支持 _testing_ 和 _sid_ 分支) 和Ubuntu (20.04) 上：
+在 Debian 和 Ubuntu 上：
 
 ```
 apt install scrcpy
+```
+
+在 Arch Linux 上:
+
+```
+pacman -S scrcpy
 ```
 
 我们也提供 [Snap] 包： [`scrcpy`][snap-link]。
@@ -60,28 +95,19 @@ apt install scrcpy
 [COPR]: https://fedoraproject.org/wiki/Category:Copr
 [copr-link]: https://copr.fedorainfracloud.org/coprs/zeno/scrcpy/
 
-对 Arch Linux 我们提供 [AUR] 包： [`scrcpy`][aur-link]。
-
-[AUR]: https://wiki.archlinux.org/index.php/Arch_User_Repository
-[aur-link]: https://aur.archlinux.org/packages/scrcpy/
-
 对 Gentoo 我们提供 [Ebuild] 包：[`scrcpy/`][ebuild-link]。
 
 [Ebuild]: https://wiki.gentoo.org/wiki/Ebuild
 [ebuild-link]: https://github.com/maggu2810/maggu2810-overlay/tree/master/app-mobilephone/scrcpy
 
-您也可以[自行构建][BUILD] (不必担心，这并不困难)。
-
+您也可以[自行构建][BUILD] ([简化过程][BUILD_simple])。
 
 
 ### Windows
 
-在 Windows 上，简便起见，我们提供包含了所有依赖 (包括 `adb`) 的预编译包。
+在 Windows 上，为简便起见，我们提供包含了所有依赖 (包括 `adb`) 的预编译包。
 
- - [`scrcpy-win64-v1.17.zip`][direct-win64]
-   _(SHA-256: 8b9e57993c707367ed10ebfe0e1ef563c7a29d9af4a355cd8b6a52a317c73eea)_
-
-[direct-win64]: https://github.com/Genymobile/scrcpy/releases/download/v1.17/scrcpy-win64-v1.17.zip
+ - [README](README.md#windows)
 
 也可以使用 [Chocolatey]：
 
@@ -117,12 +143,16 @@ brew install scrcpy
 你还需要在 `PATH` 内有 `adb`。如果还没有：
 
 ```bash
-# Homebrew >= 2.6.0
-brew install --cask android-platform-tools
-
-# Homebrew < 2.6.0
-brew cask install android-platform-tools
+brew install android-platform-tools
 ```
+
+或者通过 [MacPorts]，该方法同时设置好 adb：
+
+```bash
+sudo port install scrcpy
+```
+
+[MacPorts]: https://www.macports.org/
 
 您也可以[自行构建][BUILD]。
 
@@ -143,7 +173,7 @@ scrcpy --help
 
 ## 功能介绍
 
-### 捕获设置
+### 采集设置
 
 #### 降低分辨率
 
@@ -161,7 +191,7 @@ scrcpy -m 1024  # 简写
 
 #### 修改码率
 
-默认码率是 8Mbps。要改变视频的码率 (例如改为 2Mbps)：
+默认码率是 8 Mbps。改变视频码率 (例如改为 2 Mbps)：
 
 ```bash
 scrcpy --bit-rate 2M
@@ -170,7 +200,7 @@ scrcpy -b 2M  # 简写
 
 #### 限制帧率
 
-要限制捕获的帧率：
+要限制采集的帧率：
 
 ```bash
 scrcpy --max-fps 15
@@ -197,10 +227,11 @@ scrcpy --crop 1224:1440:0:0   # 以 (0,0) 为原点的 1224x1440 像素
 要锁定镜像画面的方向：
 
 ```bash
-scrcpy --lock-video-orientation 0   # 自然方向
-scrcpy --lock-video-orientation 1   # 逆时针旋转 90°
-scrcpy --lock-video-orientation 2   # 180°
-scrcpy --lock-video-orientation 3   # 顺时针旋转 90°
+scrcpy --lock-video-orientation     # 初始（目前）方向
+scrcpy --lock-video-orientation=0   # 自然方向
+scrcpy --lock-video-orientation=1   # 逆时针旋转 90°
+scrcpy --lock-video-orientation=2   # 180°
+scrcpy --lock-video-orientation=3   # 顺时针旋转 90°
 ```
 
 只影响录制的方向。
@@ -222,7 +253,9 @@ scrcpy --encoder OMX.qcom.video.encoder.avc
 scrcpy --encoder _
 ```
 
-### 屏幕录制
+### 采集
+
+#### 屏幕录制
 
 可以在镜像的同时录制视频：
 
@@ -244,24 +277,117 @@ scrcpy -Nr file.mkv
 [packet delay variation]: https://en.wikipedia.org/wiki/Packet_delay_variation
 
 
+#### v4l2loopback
+
+在 Linux 上，可以将视频流发送至 v4l2 回环 (loopback) 设备，因此可以使用任何 v4l2 工具像摄像头一样打开安卓设备。
+
+需安装 `v4l2loopback` 模块：
+
+```bash
+sudo apt install v4l2loopback-dkms
+```
+
+创建一个 v4l2 设备：
+
+```bash
+sudo modprobe v4l2loopback
+```
+
+这样会在 `/dev/videoN` 创建一个新的视频设备，其中 `N` 是整数。 ([更多选项](https://github.com/umlaeute/v4l2loopback#options) 可以用来创建多个设备或者特定 ID 的设备)。
+
+列出已启用的设备：
+
+```bash
+# 需要 v4l-utils 包
+v4l2-ctl --list-devices
+
+# 简单但或许足够
+ls /dev/video*
+```
+
+使用一个 v4l2 漏开启 scrcpy：
+
+```bash
+scrcpy --v4l2-sink=/dev/videoN
+scrcpy --v4l2-sink=/dev/videoN --no-display  # 禁用窗口镜像
+scrcpy --v4l2-sink=/dev/videoN -N            # 简写
+```
+
+(将 `N` 替换为设备 ID，使用 `ls /dev/video*` 命令查看)
+
+启用之后，可以使用 v4l2 工具打开视频流：
+
+```bash
+ffplay -i /dev/videoN
+vlc v4l2:///dev/videoN   # VLC 可能存在一些缓冲延迟
+```
+
+例如，可以在 [OBS] 中采集视频。
+
+[OBS]: https://obsproject.com/
+
+
+#### 缓冲
+
+可以加入缓冲，会增加延迟，但可以减少抖动 (见 [#2464])。
+
+[#2464]: https://github.com/Genymobile/scrcpy/issues/2464
+
+对于显示缓冲：
+
+```bash
+scrcpy --display-buffer=50  # 为显示增加 50 毫秒的缓冲
+```
+
+对于 V4L2 漏:
+
+```bash
+scrcpy --v4l2-buffer=500    # 为 v4l2 漏增加 500 毫秒的缓冲
+```
+
+
 ### 连接
 
-#### 无线
+#### TCP/IP （无线）
 
-_Scrcpy_ 使用 `adb` 与设备通信，并且 `adb` 支持通过 TCP/IP [连接]到设备:
+_Scrcpy_ 使用 `adb` 与设备通信，并且 `adb` 支持通过 TCP/IP [连接]到设备（设备必须连接与电脑相同的网络）。
+
+##### 自动配置
+
+参数 `--tcpip` 允许自动配置连接。这里有两种方式。
+
+对于传入的 adb 连接，如果设备（在这个例子中以192.168.1.1为可用地址）已经监听了一个端口（通常是5555），运行：
+
+```bash
+scrcpy --tcpip=192.168.1.1       # 默认端口是5555
+scrcpy --tcpip=192.168.1.1:5555
+```
+
+如果adb TCP/IP（无线） 模式在某些设备上不被启用（或者你不知道IP地址），用USB连接设备，然后运行：
+
+```bash
+scrcpy --tcpip    # 无需其他参数
+```
+
+这将会自动寻找设备IP地址，启用TCP/IP模式，然后在启动之前连接到设备。
+
+##### 手动配置
+
+或者，可以通过 `adb` 使用手动启用 TCP/IP 连接：
 
 1. 将设备和电脑连接至同一 Wi-Fi。
 2. 打开 设置 → 关于手机 → 状态信息，获取设备的 IP 地址，也可以执行以下的命令：
+
     ```bash
     adb shell ip route | awk '{print $9}'
     ```
 
-3. 启用设备的网络 adb 功能 `adb tcpip 5555`。
+3. 启用设备的网络 adb 功能：`adb tcpip 5555`。
 4. 断开设备的 USB 连接。
-5. 连接到您的设备：`adb connect DEVICE_IP:5555` _(将 `DEVICE_IP` 替换为设备 IP)_.
+5. 连接到您的设备：`adb connect DEVICE_IP:5555` _(将 `DEVICE_IP` 替换为设备 IP)_。
 6. 正常运行 `scrcpy`。
 
-可能需要降低码率和分辨率：
+降低比特率和分辨率可能很有用：
 
 ```bash
 scrcpy --bit-rate 2M --max-size 800
@@ -299,38 +425,80 @@ autoadb scrcpy -s '{}'
 
 [AutoAdb]: https://github.com/rom1v/autoadb
 
-#### SSH 隧道
+#### 隧道
 
-要远程连接到设备，可以将本地的 adb 客户端连接到远程的 adb 服务端 (需要两端的 _adb_ 协议版本相同)：
+要远程连接到设备，可以将本地的 adb 客户端连接到远程的 adb 服务端 (需要两端的 _adb_ 协议版本相同)。
+
+##### 远程ADB服务器
+
+要连接到一个远程ADB服务器，让服务器在所有接口上监听：
 
 ```bash
-adb kill-server    # 关闭本地 5037 端口上的 adb 服务端
-ssh -CN -L5037:localhost:5037 -R27183:localhost:27183 your_remote_computer
+adb kill-server
+adb -a nodaemon server start
 # 保持该窗口开启
 ```
 
-在另一个终端：
+**警告：所有客户端与ADB服务器的交流都是未加密的。**
+
+假设此服务器可在 192.168.1.2 访问。 然后，从另一个终端，运行 scrcpy：
 
 ```bash
+export ADB_SERVER_SOCKET=tcp:192.168.1.2:5037
+scrcpy --tunnel-host=192.168.1.2
+```
+
+默认情况下，scrcpy使用用于 `adb forward` 隧道建立的本地端口（通常是 `27183`，见 `--port` ）。它也可以强制使用一个不同的隧道端口（当涉及更多的重定向时，这在更复杂的情况下可能很有用）:
+
+```
+scrcpy --tunnel-port=1234
+```
+
+
+##### SSH 隧道
+
+为了安全地与远程ADB服务器通信，最好使用SSH隧道。
+
+首先，确保ADB服务器正在远程计算机上运行：
+
+```bash
+adb start-server
+```
+
+然后，建立一个SSH隧道：
+
+```bash
+# 本地  5038 --> 远程  5037
+# 本地 27183 <-- 远程 27183
+ssh -CN -L5038:localhost:5037 -R27183:localhost:27183 your_remote_computer
+# 保持该窗口开启
+```
+
+在另一个终端上，运行scrcpy：
+
+```bash
+export ADB_SERVER_SOCKET=tcp:localhost:5038
 scrcpy
 ```
 
-若要不使用远程端口转发，可以强制使用正向连接 (注意 `-L` 和 `-R` 的区别)：
+若要不使用远程端口转发，可以强制使用正向连接（注意是 `-L` 而不是 `-R` ）：
 
 ```bash
-adb kill-server    # 关闭本地 5037 端口上的 adb 服务端
-ssh -CN -L5037:localhost:5037 -L27183:localhost:27183 your_remote_computer
+# 本地  5038 --> 远程  5037
+# 本地 27183 <-- 远程 27183
+ssh -CN -L5038:localhost:5037 -L27183:localhost:27183 your_remote_computer
 # 保持该窗口开启
 ```
 
-在另一个终端:
+在另一个终端上，运行scrcpy：
 
 ```bash
+export ADB_SERVER_SOCKET=tcp:localhost:5038
 scrcpy --force-adb-forward
 ```
 
 
-类似无线网络连接，可能需要降低画面质量：
+类似地，对于无线连接，可能需要降低画面质量：
 
 ```
 scrcpy -b2M -m800 --max-fps 15
@@ -343,7 +511,7 @@ scrcpy -b2M -m800 --max-fps 15
 窗口的标题默认为设备型号。可以通过如下命令修改：
 
 ```bash
-scrcpy --window-title 'My device'
+scrcpy --window-title "我的设备"
 ```
 
 #### 位置和大小
@@ -356,7 +524,7 @@ scrcpy --window-x 100 --window-y 100 --window-width 800 --window-height 600
 
 #### 无边框
 
-关闭边框：
+禁用窗口边框：
 
 ```bash
 scrcpy --window-borderless
@@ -372,7 +540,7 @@ scrcpy --always-on-top
 
 #### 全屏
 
-您可以通过如下命令直接全屏启动scrcpy：
+您可以通过如下命令直接全屏启动 scrcpy：
 
 ```bash
 scrcpy --fullscreen
@@ -397,7 +565,7 @@ scrcpy --rotation 1
 
 也可以使用 <kbd>MOD</kbd>+<kbd>←</kbd> _(左箭头)_ 和 <kbd>MOD</kbd>+<kbd>→</kbd> _(右箭头)_ 随时更改。
 
-需要注意的是， _scrcpy_ 有三个不同的方向：
+需要注意的是， _scrcpy_ 中有三类旋转方向：
  - <kbd>MOD</kbd>+<kbd>r</kbd> 请求设备在竖屏和横屏之间切换 (如果前台应用程序不支持请求的朝向，可能会拒绝该请求)。
  - [`--lock-video-orientation`](#锁定屏幕方向) 改变镜像的朝向 (设备传输到电脑的画面的朝向)。这会影响录制。
  - `--rotation` (或 <kbd>MOD</kbd>+<kbd>←</kbd>/<kbd>MOD</kbd>+<kbd>→</kbd>) 只旋转窗口的内容。这只影响显示，不影响录制。
@@ -407,7 +575,7 @@ scrcpy --rotation 1
 
 #### 只读
 
-禁用电脑对设备的控制 (如键盘输入、鼠标事件和文件拖放)：
+禁用电脑对设备的控制 (任何可与设备交互的方式：如键盘输入、鼠标事件和文件拖放)：
 
 ```bash
 scrcpy --no-control
@@ -433,14 +601,14 @@ adb shell dumpsys display   # 在输出中搜索 “mDisplayId=”
 
 #### 保持常亮
 
-阻止设备在连接时休眠：
+阻止设备在连接时一段时间后休眠：
 
 ```bash
 scrcpy --stay-awake
 scrcpy -w
 ```
 
-程序关闭时会恢复设备原来的设置。
+scrcpy 关闭时会恢复设备原来的设置。
 
 
 #### 关闭设备屏幕
@@ -454,7 +622,7 @@ scrcpy -S
 
 或者在任何时候按 <kbd>MOD</kbd>+<kbd>o</kbd>。
 
-要重新打开屏幕，按下 <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>o</kbd>.
+要重新打开屏幕，按下 <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>o</kbd>。
 
 在Android上，`电源` 按钮始终能把屏幕打开。为了方便，对于在 _scrcpy_ 中发出的 `电源` 事件 (通过鼠标右键或 <kbd>MOD</kbd>+<kbd>p</kbd>)，会 (尽最大的努力) 在短暂的延迟后将屏幕关闭。设备上的 `电源` 按钮仍然能打开设备屏幕。
 
@@ -465,20 +633,17 @@ scrcpy --turn-screen-off --stay-awake
 scrcpy -Sw
 ```
 
+#### 退出时息屏
 
-#### 渲染过期帧
-
-默认状态下，为了降低延迟， _scrcpy_ 永远渲染解码成功的最近一帧，并跳过前面任意帧。
-
-强制渲染所有帧 (可能导致延迟变高)：
+scrcpy 退出时关闭设备屏幕：
 
 ```bash
-scrcpy --render-expired-frames
+scrcpy --power-off-on-close
 ```
 
 #### 显示触摸
 
-在演示时，可能会需要显示物理触摸点 (在物理设备上的触摸点)。
+在演示时，可能会需要显示 (在物理设备上的) 物理触摸点。
 
 Android 在 _开发者选项_ 中提供了这项功能。
 
@@ -535,18 +700,91 @@ scrcpy --disable-screensaver
 
 一些设备不支持通过程序设置剪贴板。通过 `--legacy-paste` 选项可以修改 <kbd>Ctrl</kbd>+<kbd>v</kbd> 和 <kbd>MOD</kbd>+<kbd>v</kbd> 的工作方式，使它们通过按键事件 (同 <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>v</kbd>) 来注入电脑剪贴板内容。
 
+要禁用自动剪贴板同步功能，使用`--no-clipboard-autosync`。
+
 #### 双指缩放
 
-模拟“双指缩放”：<kbd>Ctrl</kbd>+_按住并移动鼠标_。
+模拟“双指缩放”：<kbd>Ctrl</kbd>+_按下并拖动鼠标_。
 
-更准确的说，在按住鼠标左键时按住 <kbd>Ctrl</kbd>。直到松开鼠标左键，所有鼠标移动将以屏幕中心为原点，缩放或旋转内容 (如果应用支持)。
+在按住 <kbd>Ctrl</kbd> 时按下鼠标左键，直到松开鼠标左键前，移动鼠标会使屏幕内容相对于屏幕中心进行缩放或旋转 (如果应用支持)。
 
-实际上，_scrcpy_ 会在以屏幕中心对称的位置上生成由“虚拟手指”发出的额外触摸事件。
+具体来说，_scrcpy_ 会在鼠标位置，以及鼠标以屏幕中心镜像的位置分别生成触摸事件。
+
+#### 物理键盘模拟 (HID)
+
+默认情况下，scrcpy 使用安卓按键或文本注入，这在任何情况都可以使用，但仅限于ASCII字符。
+
+在 Linux 上，scrcpy 可以模拟为 Android 上的物理 USB 键盘，以提供更好地输入体验 (使用 [USB HID over AOAv2][hid-aoav2])：禁用虚拟键盘，并适用于任何字符和输入法。
+
+[hid-aoav2]: https://source.android.com/devices/accessories/aoa2#hid-support
+
+不过，这种方法仅支持 USB 连接以及 Linux平台。
+
+启用 HID 模式：
+
+```bash
+scrcpy --hid-keyboard
+scrcpy -K  # 简写
+```
+
+如果失败了 (如设备未通过 USB 连接)，则自动回退至默认模式 (终端中会输出日志)。这即允许通过 USB 和 TCP/IP 连接时使用相同的命令行参数。
+
+在这种模式下，原始按键事件 (扫描码) 被发送给设备，而与宿主机按键映射无关。因此，若键盘布局不匹配，需要在 Android 设备上进行配置，具体为 设置 → 系统 → 语言和输入法 → [实体键盘]。
+
+[实体键盘]: https://github.com/Genymobile/scrcpy/pull/2632#issuecomment-923756915
+
+#### 物理鼠标模拟 (HID)
+
+与物理键盘模拟类似，可以模拟一个物理鼠标。 同样，它仅在设备通过 USB 连接时才有效，并且目前仅在 Linux 上受支持。
+
+默认情况下，scrcpy 使用 Android 鼠标事件注入，使用绝对坐标。 通过模拟物理鼠标，在Android设备上出现鼠标指针，并注入鼠标相对运动、点击和滚动。
+
+启用此模式:
+
+```bash
+scrcpy --hid-mouse
+scrcpy -M  # 简写
+```
+
+您还可以将 `--forward-all-clicks` 添加到 [转发所有点击][forward_all_clicks].
+
+[forward_all_clicks]: #右键和中键
+
+启用此模式后，计算机鼠标将被“捕获”（鼠标指针从计算机上消失并出现在 Android 设备上）。
+
+特殊的捕获键，<kbd>Alt</kbd> 或 <kbd>Super</kbd>，切换（禁用或启用）鼠标捕获。 使用其中之一将鼠标的控制权交还给计算机。
 
 
-#### 文字注入偏好
+#### OTG
 
-打字的时候，系统会产生两种[事件][textevents]：
+可以仅使用物理键盘和鼠标模拟 (HID) 运行 _scrcpy_，就好像计算机键盘和鼠标通过 OTG 线直接插入设备一样。
+
+在这个模式下，_adb_ (USB 调试)是不必要的，且镜像被禁用。
+
+启用 OTG 模式:
+
+```bash
+scrcpy --otg
+# 如果有多个 USB 设备可用，则通过序列号选择
+scrcpy --otg -s 0123456789abcdef
+```
+
+只开启 HID 键盘 或 HID 鼠标 是可行的：
+
+```bash
+scrcpy --otg --hid-keyboard              # 只开启 HID 键盘
+scrcpy --otg --hid-mouse                 # 只开启 HID 鼠标
+scrcpy --otg --hid-keyboard --hid-mouse  # 开启 HID 键盘 和 HID 鼠标
+# 为了方便，默认两者都开启
+scrcpy --otg                             # 开启 HID 键盘 和 HID 鼠标
+```
+
+像 `--hid-keyboard` 和 `--hid-mouse` 一样，它只在设备通过 USB 连接时才有效，且目前仅在 Linux 上支持。
+
+
+#### 文本注入偏好
+
+输入文字的时候，系统会产生两种[事件][textevents]：
  - _按键事件_ ，代表一个按键被按下或松开。
  - _文本事件_ ，代表一个字符被输入。
 
@@ -558,7 +796,15 @@ scrcpy --disable-screensaver
 scrcpy --prefer-text
 ```
 
-(这会导致键盘在游戏中工作不正常)
+(但这会导致键盘在游戏中工作不正常)
+
+相反，您可以强制始终注入原始按键事件：
+
+```bash
+scrcpy --raw-key-events
+```
+
+该选项不影响 HID 键盘 (该模式下，所有按键都发送为扫描码)。
 
 [textevents]: https://blog.rom1v.com/2018/03/introducing-scrcpy/#handle-text-input
 [prefertext]: https://github.com/Genymobile/scrcpy/issues/650#issuecomment-512945343
@@ -566,7 +812,7 @@ scrcpy --prefer-text
 
 #### 按键重复
 
-默认状态下，按住一个按键不放会生成多个重复按键事件。在某些游戏中这可能会导致性能问题。
+默认状态下，按住一个按键不放会生成多个重复按键事件。在某些游戏中这通常没有实际用途，且可能会导致性能问题。
 
 避免转发重复按键事件：
 
@@ -574,10 +820,11 @@ scrcpy --prefer-text
 scrcpy --no-key-repeat
 ```
 
+该选项不影响 HID 键盘 (该模式下，按键重复由 Android 直接管理)。
 
 #### 右键和中键
 
-默认状态下，右键会触发返回键 (或电源键)，中键会触发 HOME 键。要禁用这些快捷键并把所有点击转发到设备：
+默认状态下，右键会触发返回键 (或电源键开启)，中键会触发 HOME 键。要禁用这些快捷键并把所有点击转发到设备：
 
 ```bash
 scrcpy --forward-all-clicks
@@ -590,27 +837,27 @@ scrcpy --forward-all-clicks
 
 将 APK 文件 (文件名以 `.apk` 结尾) 拖放到 _scrcpy_ 窗口来安装。
 
-该操作在屏幕上不会出现任何变化，而会在控制台输出一条日志。
+不会有视觉反馈，终端会输出一条日志。
 
 
 #### 将文件推送至设备
 
-要推送文件到设备的 `/sdcard/`，将 (非 APK) 文件拖放至 _scrcpy_ 窗口。
+要推送文件到设备的 `/sdcard/Download/`，将 (非 APK) 文件拖放至 _scrcpy_ 窗口。
 
-该操作没有可见的响应，只会在控制台输出日志。
+不会有视觉反馈，终端会输出一条日志。
 
 在启动时可以修改目标目录：
 
 ```bash
-scrcpy --push-target /sdcard/foo/bar/
+scrcpy --push-target=/sdcard/Movies/
 ```
 
 
 ### 音频转发
 
-_Scrcpy_ 不支持音频。请使用 [sndcpy].
+_Scrcpy_ 不支持音频。请使用 [sndcpy]。
 
-另外请阅读 [issue #14]。
+另见 [issue #14]。
 
 [sndcpy]: https://github.com/rom1v/sndcpy
 [issue #14]: https://github.com/Genymobile/scrcpy/issues/14
@@ -635,36 +882,47 @@ _<kbd>[Super]</kbd> 键通常是指 <kbd>Windows</kbd> 或 <kbd>Cmd</kbd> 键。
 
 [Super]: https://en.wikipedia.org/wiki/Super_key_(keyboard_button)
 
- | 操作                              | 快捷键                                       |
- | --------------------------------- | :------------------------------------------- |
- | 全屏                              | <kbd>MOD</kbd>+<kbd>f</kbd>                  |
- | 向左旋转屏幕                      | <kbd>MOD</kbd>+<kbd>←</kbd> _(左箭头)_       |
- | 向右旋转屏幕                      | <kbd>MOD</kbd>+<kbd>→</kbd> _(右箭头)_       |
- | 将窗口大小重置为1:1 (匹配像素)    | <kbd>MOD</kbd>+<kbd>g</kbd>                  |
- | 将窗口大小重置为消除黑边          | <kbd>MOD</kbd>+<kbd>w</kbd> \| _双击¹_       |
- | 点按 `主屏幕`                     | <kbd>MOD</kbd>+<kbd>h</kbd> \| _鼠标中键_    |
- | 点按 `返回`                       | <kbd>MOD</kbd>+<kbd>b</kbd> \| _鼠标右键²_   |
- | 点按 `切换应用`                   | <kbd>MOD</kbd>+<kbd>s</kbd>                  |
- | 点按 `菜单` (解锁屏幕)            | <kbd>MOD</kbd>+<kbd>m</kbd>                  |
- | 点按 `音量+`                      | <kbd>MOD</kbd>+<kbd>↑</kbd> _(上箭头)_       |
- | 点按 `音量-`                      | <kbd>MOD</kbd>+<kbd>↓</kbd> _(下箭头)_       |
- | 点按 `电源`                       | <kbd>MOD</kbd>+<kbd>p</kbd>                  |
- | 打开屏幕                          | _鼠标右键²_                                  |
- | 关闭设备屏幕 (但继续在电脑上显示) | <kbd>MOD</kbd>+<kbd>o</kbd>                  |
- | 打开设备屏幕                      | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>o</kbd> |
- | 旋转设备屏幕                      | <kbd>MOD</kbd>+<kbd>r</kbd>                  |
- | 展开通知面板                      | <kbd>MOD</kbd>+<kbd>n</kbd>                  |
- | 收起通知面板                      | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>n</kbd> |
- | 复制到剪贴板³                     | <kbd>MOD</kbd>+<kbd>c</kbd>                  |
- | 剪切到剪贴板³                     | <kbd>MOD</kbd>+<kbd>x</kbd>                  |
- | 同步剪贴板并粘贴³                 | <kbd>MOD</kbd>+<kbd>v</kbd>                  |
- | 注入电脑剪贴板文本                | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>v</kbd> |
- | 打开/关闭FPS显示 (在 stdout)      | <kbd>MOD</kbd>+<kbd>i</kbd>                  |
- | 捏拉缩放                          | <kbd>Ctrl</kbd>+_按住并移动鼠标_             |
+ | 操作                              | 快捷键
+ | --------------------------------- | :-------------------------------------------
+ | 全屏                              | <kbd>MOD</kbd>+<kbd>f</kbd>
+ | 向左旋转屏幕                      | <kbd>MOD</kbd>+<kbd>←</kbd> _(左箭头)_
+ | 向右旋转屏幕                      | <kbd>MOD</kbd>+<kbd>→</kbd> _(右箭头)_
+ | 将窗口大小重置为1:1 (匹配像素)    | <kbd>MOD</kbd>+<kbd>g</kbd>
+ | 将窗口大小重置为消除黑边          | <kbd>MOD</kbd>+<kbd>w</kbd> \| _双击左键¹_
+ | 点按 `主屏幕`                     | <kbd>MOD</kbd>+<kbd>h</kbd> \| _中键_
+ | 点按 `返回`                       | <kbd>MOD</kbd>+<kbd>b</kbd> \| _右键²_
+ | 点按 `切换应用`                   | <kbd>MOD</kbd>+<kbd>s</kbd> \| _第4键³_
+ | 点按 `菜单` (解锁屏幕)⁴           | <kbd>MOD</kbd>+<kbd>m</kbd>
+ | 点按 `音量+`                      | <kbd>MOD</kbd>+<kbd>↑</kbd> _(上箭头)_
+ | 点按 `音量-`                      | <kbd>MOD</kbd>+<kbd>↓</kbd> _(下箭头)_
+ | 点按 `电源`                       | <kbd>MOD</kbd>+<kbd>p</kbd>
+ | 打开屏幕                          | _鼠标右键²_
+ | 关闭设备屏幕 (但继续在电脑上显示) | <kbd>MOD</kbd>+<kbd>o</kbd>
+ | 打开设备屏幕                      | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>o</kbd>
+ | 旋转设备屏幕                      | <kbd>MOD</kbd>+<kbd>r</kbd>
+ | 展开通知面板                      | <kbd>MOD</kbd>+<kbd>n</kbd> \| _第5键³_
+ | 展开设置面板                      | <kbd>MOD</kbd>+<kbd>n</kbd>+<kbd>n</kbd> \| _双击第5键³_
+ | 收起通知面板                      | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>n</kbd>
+ | 复制到剪贴板⁵                     | <kbd>MOD</kbd>+<kbd>c</kbd>
+ | 剪切到剪贴板⁵                     | <kbd>MOD</kbd>+<kbd>x</kbd>
+ | 同步剪贴板并粘贴⁵                 | <kbd>MOD</kbd>+<kbd>v</kbd>
+ | 注入电脑剪贴板文本                | <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>v</kbd>
+ | 打开/关闭FPS显示 (至标准输出)     | <kbd>MOD</kbd>+<kbd>i</kbd>
+ | 捏拉缩放                          | <kbd>Ctrl</kbd>+_按住并移动鼠标_
+ | 拖放 APK 文件                     | 从电脑安装 APK 文件
+ | 拖放非 APK 文件                   | [将文件推送至设备](#push-file-to-device)
 
-_¹双击黑边可以去除黑边_
-_²点击鼠标右键将在屏幕熄灭时点亮屏幕，其余情况则视为按下返回键 。_
-_³需要安卓版本 Android >= 7。_
+_¹双击黑边可以去除黑边。_  
+_²点击鼠标右键将在屏幕熄灭时点亮屏幕，其余情况则视为按下返回键 。_  
+_³鼠标的第4键和第5键。_  
+_⁴对于开发中的 react-native 应用程序，`MENU` 触发开发菜单。_  
+_⁵需要安卓版本 Android >= 7。_
+
+有重复按键的快捷键通过松开再按下一个按键来进行，如“展开设置面板”：
+
+ 1. 按下 <kbd>MOD</kbd> 不放。
+ 2. 双击 <kbd>n</kbd>。
+ 3. 松开 <kbd>MOD</kbd>。
 
 所有的 <kbd>Ctrl</kbd>+_按键_ 的快捷键都会被转发到设备，所以会由当前应用程序进行处理。
 
@@ -673,18 +931,20 @@ _³需要安卓版本 Android >= 7。_
 
 要使用指定的 _adb_ 二进制文件，可以设置环境变量 `ADB`：
 
-    ADB=/path/to/adb scrcpy
+```bash
+ADB=/path/to/adb scrcpy
+```
 
 要覆盖 `scrcpy-server` 的路径，可以设置 `SCRCPY_SERVER_PATH`。
 
-[useful]: https://github.com/Genymobile/scrcpy/issues/278#issuecomment-429330345
+要覆盖图标，可以设置其路径至 `SCRCPY_ICON_PATH`。
 
 
 ## 为什么叫 _scrcpy_ ？
 
 一个同事让我找出一个和 [gnirehtet] 一样难以发音的名字。
 
-[`strcpy`] 复制一个 **str**ing； `scrcpy` 复制一个 **scr**een。
+[`strcpy`] 源于 **str**ing （字符串）； `scrcpy` 源于 **scr**een （屏幕）。
 
 [gnirehtet]: https://github.com/Genymobile/gnirehtet
 [`strcpy`]: http://man7.org/linux/man-pages/man3/strcpy.3.html
@@ -692,14 +952,12 @@ _³需要安卓版本 Android >= 7。_
 
 ## 如何构建？
 
-请查看[BUILD]。
-
-[BUILD]: BUILD.md
+请查看 [BUILD]。
 
 
 ## 常见问题
 
-请查看[FAQ](FAQ.md)。
+请查看 [FAQ](FAQ.md)。
 
 
 ## 开发者
@@ -712,7 +970,7 @@ _³需要安卓版本 Android >= 7。_
 ## 许可协议
 
     Copyright (C) 2018 Genymobile
-    Copyright (C) 2018-2021 Romain Vimont
+    Copyright (C) 2018-2022 Romain Vimont
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.

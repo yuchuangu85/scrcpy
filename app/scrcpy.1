@@ -44,6 +44,12 @@ The values are expressed in the device natural orientation (typically, portrait 
 value is computed on the cropped size.
 
 .TP
+.B \-d, \-\-select\-usb
+Use USB device (if there is exactly one, like adb -d).
+
+Also see \fB\-e\fR (\fB\-\-select\-tcpip\fR).
+
+.TP
 .BI "\-\-disable-screensaver"
 Disable screensaver while scrcpy is running.
 
@@ -55,6 +61,18 @@ The list of possible display ids can be listed by "adb shell dumpsys display"
 (search "mDisplayId=" in the output).
 
 Default is 0.
+
+.TP
+.BI "\-\-display\-buffer ms
+Add a buffering delay (in milliseconds) before displaying. This increases latency to compensate for jitter.
+
+Default is 0 (no buffering).
+
+.TP
+.B \-e, \-\-select\-tcpip
+Use TCP/IP device (if there is exactly one, like adb -e).
+
+Also see \fB\-d\fR (\fB\-\-select\-usb\fR).
 
 .TP
 .BI "\-\-encoder " name
@@ -77,16 +95,34 @@ Start in fullscreen.
 Print this help.
 
 .TP
+.B \-K, \-\-hid\-keyboard
+Simulate a physical keyboard by using HID over AOAv2.
+
+This provides a better experience for IME users, and allows to generate non-ASCII characters, contrary to the default injection method.
+
+It may only work over USB.
+
+The keyboard layout must be configured (once and for all) on the device, via Settings -> System -> Languages and input -> Physical keyboard. This settings page can be started directly:
+
+    adb shell am start -a android.settings.HARD_KEYBOARD_SETTINGS
+
+However, the option is only available when the HID keyboard is enabled (or a physical keyboard is connected).
+
+Also see \fB\-\-hid\-mouse\fR.
+
+.TP
 .B \-\-legacy\-paste
 Inject computer clipboard text as a sequence of key events on Ctrl+v (like MOD+Shift+v).
 
 This is a workaround for some devices not behaving as expected when setting the device clipboard programmatically.
 
 .TP
-.BI "\-\-lock\-video\-orientation " value
-Lock video orientation to \fIvalue\fR. Possible values are -1 (unlocked), 0, 1, 2 and 3. Natural device orientation is 0, and each increment adds a 90 degrees otation counterclockwise.
+.BI "\-\-lock\-video\-orientation[=value]
+Lock video orientation to \fIvalue\fR. Possible values are "unlocked", "initial" (locked to the initial orientation), 0, 1, 2 and 3. Natural device orientation is 0, and each increment adds a 90 degrees rotation counterclockwise.
 
-Default is -1 (unlocked).
+Default is "unlocked".
+
+Passing the option without argument is equivalent to passing "initial".
 
 .TP
 .BI "\-\-max\-fps " value
@@ -97,6 +133,36 @@ Limit the framerate of screen capture (officially supported since Android 10, bu
 Limit both the width and height of the video to \fIvalue\fR. The other dimension is computed so that the device aspect\-ratio is preserved.
 
 Default is 0 (unlimited).
+
+.TP
+.B \-M, \-\-hid\-mouse
+Simulate a physical mouse by using HID over AOAv2.
+
+In this mode, the computer mouse is captured to control the device directly (relative mouse mode).
+
+LAlt, LSuper or RSuper toggle the capture mode, to give control of the mouse back to the computer.
+
+It may only work over USB.
+
+Also see \fB\-\-hid\-keyboard\fR.
+
+.TP
+.B \-\-no\-cleanup
+By default, scrcpy removes the server binary from the device and restores the device state (show touches, stay awake and power mode) on exit.
+
+This option disables this cleanup.
+
+.TP
+.B \-\-no\-clipboard\-autosync
+By default, scrcpy automatically synchronizes the computer clipboard to the device clipboard before injecting Ctrl+v, and the device clipboard to the computer clipboard whenever it changes.
+
+This option disables this automatic synchronization.
+
+.TP
+.B \-\-no\-downsize\-on\-error
+By default, on MediaCodec error, scrcpy automatically tries again with a lower definition.
+
+This option disables this behavior.
 
 .TP
 .B \-n, \-\-no\-control
@@ -115,10 +181,28 @@ Do not forward repeated key events when a key is held down.
 If the renderer is OpenGL 3.0+ or OpenGL ES 2.0+, then mipmaps are automatically generated to improve downscaling quality. This option disables the generation of mipmaps.
 
 .TP
+.B \-\-otg
+Run in OTG mode: simulate physical keyboard and mouse, as if the computer keyboard and mouse were plugged directly to the device via an OTG cable.
+
+In this mode, adb (USB debugging) is not necessary, and mirroring is disabled.
+
+LAlt, LSuper or RSuper toggle the mouse capture mode, to give control of the mouse back to the computer.
+
+If any of \fB\-\-hid\-keyboard\fR or \fB\-\-hid\-mouse\fR is set, only enable keyboard or mouse respectively, otherwise enable both.
+
+It may only work over USB.
+
+See \fB\-\-hid\-keyboard\fR and \fB\-\-hid\-mouse\fR.
+
+.TP
 .BI "\-p, \-\-port " port[:port]
 Set the TCP port (range) used by the client to listen.
 
 Default is 27183:27199.
+
+.TP
+.B \-\-power\-off\-on\-close
+Turn the device screen off when closing scrcpy.
 
 .TP
 .B \-\-prefer\-text
@@ -128,10 +212,18 @@ This avoids issues when combining multiple keys to enter special characters,
 but breaks the expected behavior of alpha keys in games (typically WASD).
 
 .TP
+.B "\-\-print\-fps
+Start FPS counter, to print framerate logs to the console. It can be started or stopped at any time with MOD+i.
+
+.TP
 .BI "\-\-push\-target " path
 Set the target directory for pushing files to the device by drag & drop. It is passed as\-is to "adb push".
 
-Default is "/sdcard/".
+Default is "/sdcard/Download/".
+
+.TP
+.B \-\-raw\-key\-events
+Inject key events for all input keys, and ignore text events.
 
 .TP
 .BI "\-r, \-\-record " file
@@ -156,10 +248,6 @@ Supported names are currently "direct3d", "opengl", "opengles2", "opengles", "me
 .UE
 
 .TP
-.B \-\-render\-expired\-frames
-By default, to minimize latency, scrcpy always renders the last available decoded frame, and drops any previous ones. This flag forces to render all frames, at a cost of a possible increased latency.
-
-.TP
 .BI "\-\-rotation " value
 Set the initial display rotation. Possibles values are 0, 1, 2 and 3. Each increment adds a 90 degrees rotation counterclockwise.
 
@@ -178,6 +266,14 @@ For example, to use either LCtrl+LAlt or LSuper for scrcpy shortcuts, pass "lctr
 Default is "lalt,lsuper" (left-Alt or left-Super).
 
 .TP
+.BI "\-\-tcpip[=ip[:port]]
+Configure and reconnect the device over TCP/IP.
+
+If a destination address is provided, then scrcpy connects to this address before starting. The device must listen on the given TCP port (default is 5555).
+
+If no destination address is provided, then scrcpy attempts to find the IP address of the current device (typically connected over USB), enables TCP/IP mode, then connects to this address before starting.
+
+.TP
 .B \-S, \-\-turn\-screen\-off
 Turn the device screen off immediately.
 
@@ -188,14 +284,40 @@ Enable "show touches" on start, restore the initial value on exit.
 It only shows physical touches (not clicks from scrcpy).
 
 .TP
-.B \-v, \-\-version
-Print the version of scrcpy.
+.BI "\-\-tunnel\-host " ip
+Set the IP address of the adb tunnel to reach the scrcpy server. This option automatically enables --force-adb-forward.
+
+Default is localhost.
+
+.TP
+.BI "\-\-tunnel\-port " port
+Set the TCP port of the adb tunnel to reach the scrcpy server. This option automatically enables --force-adb-forward.
+
+Default is 0 (not forced): the local port used for establishing the tunnel will be used.
+
+.TP
+.BI "\-\-v4l2-sink " /dev/videoN
+Output to v4l2loopback device.
+
+It requires to lock the video orientation (see \fB\-\-lock\-video\-orientation\fR).
+
+.TP
+.BI "\-\-v4l2-buffer " ms
+Add a buffering delay (in milliseconds) before pushing frames. This increases latency to compensate for jitter.
+
+This option is similar to \fB\-\-display\-buffer\fR, but specific to V4L2 sink.
+
+Default is 0 (no buffering).
 
 .TP
 .BI "\-V, \-\-verbosity " value
-Set the log level ("debug", "info", "warn" or "error").
+Set the log level ("verbose", "debug", "info", "warn" or "error").
 
 Default is "info" for release builds, "debug" for debug builds.
+
+.TP
+.B \-v, \-\-version
+Print the version of scrcpy.
 
 .TP
 .B \-w, \-\-stay-awake
@@ -236,7 +358,7 @@ Default is 0 (automatic).
 .SH SHORTCUTS
 
 In the following list, MOD is the shortcut modifier. By default, it's (left)
-Alt or (left) Super, but it can be configured by \-\-shortcut-mod (see above).
+Alt or (left) Super, but it can be configured by \fB\-\-shortcut\-mod\fR (see above).
 
 .TP
 .B MOD+f
@@ -338,16 +460,24 @@ Pinch-to-zoom from the center of the screen
 .B Drag & drop APK file
 Install APK from computer
 
+.TP
+.B Drag & drop non-APK file
+Push file to device (see \fB\-\-push\-target\fR)
+
 
 .SH Environment variables
 
 .TP
 .B ADB
-Specify the path to adb.
+Path to adb.
+
+.TP
+.B SCRCPY_ICON_PATH
+Path to the program icon.
 
 .TP
 .B SCRCPY_SERVER_PATH
-Specify the path to server binary.
+Path to the server binary.
 
 
 .SH AUTHORS
@@ -372,7 +502,7 @@ Copyright \(co 2018 Genymobile
 Genymobile
 .UE
 
-Copyright \(co 2018\-2020
+Copyright \(co 2018\-2022
 .MT rom@rom1v.com
 Romain Vimont
 .ME

@@ -1,9 +1,6 @@
 package com.genymobile.scrcpy;
 
-import com.genymobile.scrcpy.wrappers.ContentProvider;
-
 import android.graphics.Rect;
-import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.os.BatteryManager;
 import android.os.Build;
@@ -14,29 +11,30 @@ import java.util.Locale;
 
 public final class Server {
 
-
     private Server() {
         // not instantiable
     }
 
-    private static void scrcpy(Options options) throws IOException {
-        Ln.i("Device: " + Build.MANUFACTURER + " " + Build.MODEL + " (Android " + Build.VERSION.RELEASE + ")");
-        final Device device = new Device(options);
-        List<CodecOption> codecOptions = CodecOption.parse(options.getCodecOptions());
-
+    private static void initAndCleanUp(Options options) {
         boolean mustDisableShowTouchesOnCleanUp = false;
         int restoreStayOn = -1;
+        boolean restoreNormalPowerMode = options.getControl(); // only restore power mode if control is enabled
         if (options.getShowTouches() || options.getStayAwake()) {
-            try (ContentProvider settings = Device.createSettingsProvider()) {
-                if (options.getShowTouches()) {
-                    String oldValue = settings.getAndPutValue(ContentProvider.TABLE_SYSTEM, "show_touches", "1");
+            Settings settings = Device.getSettings();
+            if (options.getShowTouches()) {
+                try {
+                    String oldValue = settings.getAndPutValue(Settings.TABLE_SYSTEM, "show_touches", "1");
                     // If "show touches" was disabled, it must be disabled back on clean up
                     mustDisableShowTouchesOnCleanUp = !"1".equals(oldValue);
+                } catch (SettingsException e) {
+                    Ln.e("Could not change \"show_touches\"", e);
                 }
+            }
 
-                if (options.getStayAwake()) {
-                    int stayOn = BatteryManager.BATTERY_PLUGGED_AC | BatteryManager.BATTERY_PLUGGED_USB | BatteryManager.BATTERY_PLUGGED_WIRELESS;
-                    String oldValue = settings.getAndPutValue(ContentProvider.TABLE_GLOBAL, "stay_on_while_plugged_in", String.valueOf(stayOn));
+            if (options.getStayAwake()) {
+                int stayOn = BatteryManager.BATTERY_PLUGGED_AC | BatteryManager.BATTERY_PLUGGED_USB | BatteryManager.BATTERY_PLUGGED_WIRELESS;
+                try {
+                    String oldValue = settings.getAndPutValue(Settings.TABLE_GLOBAL, "stay_on_while_plugged_in", String.valueOf(stayOn));
                     try {
                         restoreStayOn = Integer.parseInt(oldValue);
                         if (restoreStayOn == stayOn) {
@@ -46,22 +44,45 @@ public final class Server {
                     } catch (NumberFormatException e) {
                         restoreStayOn = 0;
                     }
+                } catch (SettingsException e) {
+                    Ln.e("Could not change \"stay_on_while_plugged_in\"", e);
                 }
             }
         }
 
-        CleanUp.configure(mustDisableShowTouchesOnCleanUp, restoreStayOn, true);
+        if (options.getCleanup()) {
+            try {
+                CleanUp.configure(options.getDisplayId(), restoreStayOn, mustDisableShowTouchesOnCleanUp, restoreNormalPowerMode,
+                        options.getPowerOffScreenOnClose());
+            } catch (IOException e) {
+                Ln.e("Could not configure cleanup", e);
+            }
+        }
+    }
+
+    private static void scrcpy(Options options) throws IOException {
+        Ln.i("Device: " + Build.MANUFACTURER + " " + Build.MODEL + " (Android " + Build.VERSION.RELEASE + ")");
+        final Device device = new Device(options);
+        List<CodecOption> codecOptions = options.getCodecOptions();
+
+        Thread initThread = startInitThread(options);
 
         boolean tunnelForward = options.isTunnelForward();
+        boolean control = options.getControl();
+        boolean sendDummyByte = options.getSendDummyByte();
 
-        try (DesktopConnection connection = DesktopConnection.open(device, tunnelForward)) {
+        try (DesktopConnection connection = DesktopConnection.open(tunnelForward, control, sendDummyByte)) {
+            if (options.getSendDeviceMeta()) {
+                Size videoSize = device.getScreenInfo().getVideoSize();
+                connection.sendDeviceMeta(Device.getDeviceName(), videoSize.getWidth(), videoSize.getHeight());
+            }
             ScreenEncoder screenEncoder = new ScreenEncoder(options.getSendFrameMeta(), options.getBitRate(), options.getMaxFps(), codecOptions,
-                    options.getEncoderName());
+                    options.getEncoderName(), options.getDownsizeOnError());
 
             Thread controllerThread = null;
             Thread deviceMessageSenderThread = null;
-            if (options.getControl()) {
-                final Controller controller = new Controller(device, connection);
+            if (control) {
+                final Controller controller = new Controller(device, connection, options.getClipboardAutosync());
 
                 // asynchronous
                 controllerThread = startController(controller);
@@ -82,6 +103,7 @@ public final class Server {
                 // this is expected on close
                 Ln.d("Screen streaming stopped");
             } finally {
+                initThread.interrupt();
                 if (controllerThread != null) {
                     controllerThread.interrupt();
                 }
@@ -90,6 +112,17 @@ public final class Server {
                 }
             }
         }
+    }
+
+    private static Thread startInitThread(final Options options) {
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                initAndCleanUp(options);
+            }
+        });
+        thread.start();
+        return thread;
     }
 
     private static Thread startController(final Controller controller) {
@@ -135,61 +168,117 @@ public final class Server {
                     "The server version (" + BuildConfig.VERSION_NAME + ") does not match the client " + "(" + clientVersion + ")");
         }
 
-        final int expectedParameters = 15;
-        if (args.length != expectedParameters) {
-            throw new IllegalArgumentException("Expecting " + expectedParameters + " parameters");
-        }
-
         Options options = new Options();
 
-        Ln.Level level = Ln.Level.valueOf(args[1].toUpperCase(Locale.ENGLISH));
-        options.setLogLevel(level);
-
-        int maxSize = Integer.parseInt(args[2]) & ~7; // multiple of 8
-        options.setMaxSize(maxSize);
-
-        int bitRate = Integer.parseInt(args[3]);
-        options.setBitRate(bitRate);
-
-        int maxFps = Integer.parseInt(args[4]);
-        options.setMaxFps(maxFps);
-
-        int lockedVideoOrientation = Integer.parseInt(args[5]);
-        options.setLockedVideoOrientation(lockedVideoOrientation);
-
-        // use "adb forward" instead of "adb tunnel"? (so the server must listen)
-        boolean tunnelForward = Boolean.parseBoolean(args[6]);
-        options.setTunnelForward(tunnelForward);
-
-        Rect crop = parseCrop(args[7]);
-        options.setCrop(crop);
-
-        boolean sendFrameMeta = Boolean.parseBoolean(args[8]);
-        options.setSendFrameMeta(sendFrameMeta);
-
-        boolean control = Boolean.parseBoolean(args[9]);
-        options.setControl(control);
-
-        int displayId = Integer.parseInt(args[10]);
-        options.setDisplayId(displayId);
-
-        boolean showTouches = Boolean.parseBoolean(args[11]);
-        options.setShowTouches(showTouches);
-
-        boolean stayAwake = Boolean.parseBoolean(args[12]);
-        options.setStayAwake(stayAwake);
-
-        String codecOptions = args[13];
-        options.setCodecOptions(codecOptions);
-
-        String encoderName = "-".equals(args[14]) ? null : args[14];
-        options.setEncoderName(encoderName);
+        for (int i = 1; i < args.length; ++i) {
+            String arg = args[i];
+            int equalIndex = arg.indexOf('=');
+            if (equalIndex == -1) {
+                throw new IllegalArgumentException("Invalid key=value pair: \"" + arg + "\"");
+            }
+            String key = arg.substring(0, equalIndex);
+            String value = arg.substring(equalIndex + 1);
+            switch (key) {
+                case "log_level":
+                    Ln.Level level = Ln.Level.valueOf(value.toUpperCase(Locale.ENGLISH));
+                    options.setLogLevel(level);
+                    break;
+                case "max_size":
+                    int maxSize = Integer.parseInt(value) & ~7; // multiple of 8
+                    options.setMaxSize(maxSize);
+                    break;
+                case "bit_rate":
+                    int bitRate = Integer.parseInt(value);
+                    options.setBitRate(bitRate);
+                    break;
+                case "max_fps":
+                    int maxFps = Integer.parseInt(value);
+                    options.setMaxFps(maxFps);
+                    break;
+                case "lock_video_orientation":
+                    int lockVideoOrientation = Integer.parseInt(value);
+                    options.setLockVideoOrientation(lockVideoOrientation);
+                    break;
+                case "tunnel_forward":
+                    boolean tunnelForward = Boolean.parseBoolean(value);
+                    options.setTunnelForward(tunnelForward);
+                    break;
+                case "crop":
+                    Rect crop = parseCrop(value);
+                    options.setCrop(crop);
+                    break;
+                case "control":
+                    boolean control = Boolean.parseBoolean(value);
+                    options.setControl(control);
+                    break;
+                case "display_id":
+                    int displayId = Integer.parseInt(value);
+                    options.setDisplayId(displayId);
+                    break;
+                case "show_touches":
+                    boolean showTouches = Boolean.parseBoolean(value);
+                    options.setShowTouches(showTouches);
+                    break;
+                case "stay_awake":
+                    boolean stayAwake = Boolean.parseBoolean(value);
+                    options.setStayAwake(stayAwake);
+                    break;
+                case "codec_options":
+                    List<CodecOption> codecOptions = CodecOption.parse(value);
+                    options.setCodecOptions(codecOptions);
+                    break;
+                case "encoder_name":
+                    if (!value.isEmpty()) {
+                        options.setEncoderName(value);
+                    }
+                    break;
+                case "power_off_on_close":
+                    boolean powerOffScreenOnClose = Boolean.parseBoolean(value);
+                    options.setPowerOffScreenOnClose(powerOffScreenOnClose);
+                    break;
+                case "clipboard_autosync":
+                    boolean clipboardAutosync = Boolean.parseBoolean(value);
+                    options.setClipboardAutosync(clipboardAutosync);
+                    break;
+                case "downsize_on_error":
+                    boolean downsizeOnError = Boolean.parseBoolean(value);
+                    options.setDownsizeOnError(downsizeOnError);
+                    break;
+                case "cleanup":
+                    boolean cleanup = Boolean.parseBoolean(value);
+                    options.setCleanup(cleanup);
+                    break;
+                case "send_device_meta":
+                    boolean sendDeviceMeta = Boolean.parseBoolean(value);
+                    options.setSendDeviceMeta(sendDeviceMeta);
+                    break;
+                case "send_frame_meta":
+                    boolean sendFrameMeta = Boolean.parseBoolean(value);
+                    options.setSendFrameMeta(sendFrameMeta);
+                    break;
+                case "send_dummy_byte":
+                    boolean sendDummyByte = Boolean.parseBoolean(value);
+                    options.setSendDummyByte(sendDummyByte);
+                    break;
+                case "raw_video_stream":
+                    boolean rawVideoStream = Boolean.parseBoolean(value);
+                    if (rawVideoStream) {
+                        options.setSendDeviceMeta(false);
+                        options.setSendFrameMeta(false);
+                        options.setSendDummyByte(false);
+                    }
+                    break;
+                default:
+                    Ln.w("Unknown server option: " + key);
+                    break;
+            }
+        }
 
         return options;
     }
 
     private static Rect parseCrop(String crop) {
-        if ("-".equals(crop)) {
+        if (crop.isEmpty()) {
             return null;
         }
         // input format: "width:height:x:y"
@@ -205,16 +294,6 @@ public final class Server {
     }
 
     private static void suggestFix(Throwable e) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (e instanceof MediaCodec.CodecException) {
-                MediaCodec.CodecException mce = (MediaCodec.CodecException) e;
-                if (mce.getErrorCode() == 0xfffffc0e) {
-                    Ln.e("The hardware encoder is not able to encode at the given definition.");
-                    Ln.e("Try with a lower definition:");
-                    Ln.e("    scrcpy -m 1024");
-                }
-            }
-        }
         if (e instanceof InvalidDisplayIdException) {
             InvalidDisplayIdException idie = (InvalidDisplayIdException) e;
             int[] displayIds = idie.getAvailableDisplayIds();
@@ -230,7 +309,7 @@ public final class Server {
             if (encoders != null && encoders.length > 0) {
                 Ln.e("Try to use one of the available encoders:");
                 for (MediaCodecInfo encoder : encoders) {
-                    Ln.e("    scrcpy --encoder-name '" + encoder.getName() + "'");
+                    Ln.e("    scrcpy --encoder '" + encoder.getName() + "'");
                 }
             }
         }
