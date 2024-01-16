@@ -69,7 +69,7 @@ decode_image(const char *path) {
     }
 
     if (avformat_open_input(&ctx, path, NULL, NULL) < 0) {
-        LOGE("Could not open image codec: %s", path);
+        LOGE("Could not open icon image: %s", path);
         goto free_ctx;
     }
 
@@ -271,7 +271,7 @@ error:
 }
 
 SDL_Surface *
-scrcpy_icon_load() {
+scrcpy_icon_load(void) {
     char *icon_path = get_icon_path();
     if (!icon_path) {
         return NULL;

@@ -7,7 +7,7 @@ Here are the common reported problems and their status.
 If you encounter any error, the first step is to upgrade to the latest version.
 
 
-## `adb` issues
+## `adb` and USB issues
 
 `scrcpy` execute `adb` commands to initialize the connection with the device. If
 `adb` fails, then scrcpy will not work.
@@ -44,9 +44,9 @@ If your device is not detected, you may need some [drivers] (on Windows). There 
 
 ### Device unauthorized
 
->    ERROR: Device is unauthorized:
->    ERROR:     -->   (usb)  0123456789abcdef          unauthorized
->    ERROR: A popup should open on the device to request authorization.
+>     ERROR: Device is unauthorized:
+>     ERROR:     -->   (usb)  0123456789abcdef          unauthorized
+>     ERROR: A popup should open on the device to request authorization.
 
 When connecting, a popup should open on the device. You must authorize USB
 debugging.
@@ -60,10 +60,10 @@ If it does not open, check [stackoverflow][device-unauthorized].
 
 If several devices are connected, you will encounter this error:
 
-ERROR: Multiple (2) ADB devices:
-ERROR:     -->   (usb)  0123456789abcdef                device  Nexus_5
-ERROR:     --> (tcpip)  192.168.1.5:5555                device  GM1913
-ERROR: Select a device via -s (--serial), -d (--select-usb) or -e (--select-tcpip)
+>     ERROR: Multiple (2) ADB devices:
+>     ERROR:     -->   (usb)  0123456789abcdef                device  Nexus_5
+>     ERROR:     --> (tcpip)  192.168.1.5:5555                device  GM1913
+>     ERROR: Select a device via -s (--serial), -d (--select-usb) or -e (--select-tcpip)
 
 In that case, you can either provide the identifier of the device you want to
 mirror:
@@ -103,7 +103,20 @@ You could overwrite the `adb` binary in the other program, or ask _scrcpy_ to
 use a specific `adb` binary, by setting the `ADB` environment variable:
 
 ```bash
-set ADB=/path/to/your/adb
+# in bash
+export ADB=/path/to/your/adb
+scrcpy
+```
+
+```cmd
+:: in cmd
+set ADB=C:\path\to\your\adb.exe
+scrcpy
+```
+
+```powershell
+# in PowerShell
+$env:ADB = 'C:\path\to\your\adb.exe'
 scrcpy
 ```
 
@@ -120,6 +133,21 @@ Try with another USB cable or plug it into another USB port. See [#281] and
 [#283]: https://github.com/Genymobile/scrcpy/issues/283
 
 
+## HID/OTG issues on Windows
+
+On Windows, if `scrcpy --otg` (or `--hid-keyboard`/`--hid-mouse`) results in:
+
+>     ERROR: Could not find any USB device
+
+(or if only unrelated USB devices are detected), there might be drivers issues.
+
+Please read [#3654], in particular [this comment][#3654-comment1] and [the next
+one][#3654-comment2].
+
+[#3654]: https://github.com/Genymobile/scrcpy/issues/3654
+[#3654-comment1]: https://github.com/Genymobile/scrcpy/issues/3654#issuecomment-1369278232
+[#3654-comment2]: https://github.com/Genymobile/scrcpy/issues/3654#issuecomment-1369295011
+
 
 ## Control issues
 
@@ -131,6 +159,8 @@ In developer options, enable:
 > **USB debugging (Security settings)**  
 > _Allow granting permissions and simulating input via USB debugging_
 
+Rebooting the device is necessary once this option is set.
+
 [simulating input]: https://github.com/Genymobile/scrcpy/issues/70#issuecomment-373286323
 
 
@@ -140,42 +170,15 @@ The default text injection method is [limited to ASCII characters][text-input].
 A trick allows to also inject some [accented characters][accented-characters],
 but that's all. See [#37].
 
-Since scrcpy v1.20 on Linux, it is possible to simulate a [physical
-keyboard][hid] (HID).
+It is also possible to simulate a [physical keyboard][hid] (HID).
 
 [text-input]: https://github.com/Genymobile/scrcpy/issues?q=is%3Aopen+is%3Aissue+label%3Aunicode
 [accented-characters]: https://blog.rom1v.com/2018/03/introducing-scrcpy/#handle-accented-characters
 [#37]: https://github.com/Genymobile/scrcpy/issues/37
-[hid]: README.md#physical-keyboard-simulation-hid
+[hid]: doc/hid-otg.md
 
 
 ## Client issues
-
-### The quality is low
-
-If the definition of your client window is smaller than that of your device
-screen, then you might get poor quality, especially visible on text (see [#40]).
-
-[#40]: https://github.com/Genymobile/scrcpy/issues/40
-
-This problem should be fixed in scrcpy v1.22: **update to the latest version**.
-
-On older versions, you must configure the [scaling behavior]:
-
-> `scrcpy.exe` > Properties > Compatibility > Change high DPI settings >
-> Override high DPI scaling behavior > Scaling performed by: _Application_.
-
-[scaling behavior]: https://github.com/Genymobile/scrcpy/issues/40#issuecomment-424466723
-
-Also, to improve downscaling quality, trilinear filtering is enabled
-automatically if the renderer is OpenGL and if it supports mipmapping.
-
-On Windows, you might want to force OpenGL to enable mipmapping:
-
-```
-scrcpy --render-driver=opengl
-```
-
 
 ### Issue with Wayland
 
@@ -211,108 +214,21 @@ As a workaround, [disable "Block compositing"][kwin].
 
 ### Exception
 
-There may be many reasons. One common cause is that the hardware encoder of your
-device is not able to encode at the given definition:
-
-> ```
-> ERROR: Exception on thread Thread[main,5,main]
-> android.media.MediaCodec$CodecException: Error 0xfffffc0e
-> ...
-> Exit due to uncaughtException in main thread:
-> ERROR: Could not open video stream
-> INFO: Initial texture: 1080x2336
-> ```
-
-or
-
-> ```
-> ERROR: Exception on thread Thread[main,5,main]
-> java.lang.IllegalStateException
->         at android.media.MediaCodec.native_dequeueOutputBuffer(Native Method)
-> ```
-
-Just try with a lower definition:
+If you get any exception related to `MediaCodec`:
 
 ```
-scrcpy -m 1920
-scrcpy -m 1024
-scrcpy -m 800
+ERROR: Exception on thread Thread[main,5,main]
+java.lang.IllegalStateException
+        at android.media.MediaCodec.native_dequeueOutputBuffer(Native Method)
 ```
 
-Since scrcpy v1.22, scrcpy automatically tries again with a lower definition
-before failing. This behavior can be disabled with `--no-downsize-on-error`.
-
-You could also try another [encoder](README.md#encoder).
-
-
-If you encounter this exception on Android 12, then just upgrade to scrcpy >=
-1.18 (see [#2129]):
-
-```
-> ERROR: Exception on thread Thread[main,5,main]
-java.lang.AssertionError: java.lang.reflect.InvocationTargetException
-    at com.genymobile.scrcpy.wrappers.SurfaceControl.setDisplaySurface(SurfaceControl.java:75)
-    ...
-Caused by: java.lang.reflect.InvocationTargetException
-    at java.lang.reflect.Method.invoke(Native Method)
-    at com.genymobile.scrcpy.wrappers.SurfaceControl.setDisplaySurface(SurfaceControl.java:73)
-    ... 7 more
-Caused by: java.lang.IllegalArgumentException: displayToken must not be null
-    at android.view.SurfaceControl$Transaction.setDisplaySurface(SurfaceControl.java:3067)
-    at android.view.SurfaceControl.setDisplaySurface(SurfaceControl.java:2147)
-    ... 9 more
-```
-
-[#2129]: https://github.com/Genymobile/scrcpy/issues/2129
-
-
-## Command line on Windows
-
-Since v1.22, a "shortcut" has been added to directly open a terminal in the
-scrcpy directory. Double-click on `open_a_terminal_here.bat`, then type your
-command. For example:
-
-```
-scrcpy --record file.mkv
-```
-
-You could also open a terminal and go to the scrcpy folder manually:
-
- 1. Press <kbd>Windows</kbd>+<kbd>r</kbd>, this opens a dialog box.
- 2. Type `cmd` and press <kbd>Enter</kbd>, this opens a terminal.
- 3. Go to your _scrcpy_ directory, by typing (adapt the path):
-
-    ```bat
-    cd C:\Users\user\Downloads\scrcpy-win64-xxx
-    ```
-
-    and press <kbd>Enter</kbd>
- 4. Type your command. For example:
-
-    ```bat
-    scrcpy --record file.mkv
-    ```
-
-If you plan to always use the same arguments, create a file `myscrcpy.bat`
-(enable [show file extensions] to avoid confusion) in the `scrcpy` directory,
-containing your command. For example:
-
-```bat
-scrcpy --prefer-text --turn-screen-off --stay-awake
-```
-
-Then just double-click on that file.
-
-You could also edit (a copy of) `scrcpy-console.bat` or `scrcpy-noconsole.vbs`
-to add some arguments.
-
-[show file extensions]: https://www.howtogeek.com/205086/beginner-how-to-make-windows-show-file-extensions/
+then try with another [encoder](doc/video.md#codec).
 
 
 ## Translations
 
-This FAQ is available in other languages:
+Translations of this FAQ in other languages are available in the [wiki].
 
- - [Italiano (Italiano, `it`) - v1.19](FAQ.it.md)
- - [한국어 (Korean, `ko`) - v1.11](FAQ.ko.md)
- - [简体中文 (Simplified Chinese, `zh-Hans`) - v1.22](FAQ.zh-Hans.md)
+[wiki]: https://github.com/Genymobile/scrcpy/wiki
+
+Only this FAQ file is guaranteed to be up-to-date.

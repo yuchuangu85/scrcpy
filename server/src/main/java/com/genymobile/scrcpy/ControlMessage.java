@@ -29,12 +29,13 @@ public final class ControlMessage {
     private int metaState; // KeyEvent.META_*
     private int action; // KeyEvent.ACTION_* or MotionEvent.ACTION_* or POWER_MODE_*
     private int keycode; // KeyEvent.KEYCODE_*
+    private int actionButton; // MotionEvent.BUTTON_*
     private int buttons; // MotionEvent.BUTTON_*
     private long pointerId;
     private float pressure;
     private Position position;
-    private int hScroll;
-    private int vScroll;
+    private float hScroll;
+    private float vScroll;
     private int copyKey;
     private boolean paste;
     private int repeat;
@@ -60,18 +61,20 @@ public final class ControlMessage {
         return msg;
     }
 
-    public static ControlMessage createInjectTouchEvent(int action, long pointerId, Position position, float pressure, int buttons) {
+    public static ControlMessage createInjectTouchEvent(int action, long pointerId, Position position, float pressure, int actionButton,
+            int buttons) {
         ControlMessage msg = new ControlMessage();
         msg.type = TYPE_INJECT_TOUCH_EVENT;
         msg.action = action;
         msg.pointerId = pointerId;
         msg.pressure = pressure;
         msg.position = position;
+        msg.actionButton = actionButton;
         msg.buttons = buttons;
         return msg;
     }
 
-    public static ControlMessage createInjectScrollEvent(Position position, int hScroll, int vScroll, int buttons) {
+    public static ControlMessage createInjectScrollEvent(Position position, float hScroll, float vScroll, int buttons) {
         ControlMessage msg = new ControlMessage();
         msg.type = TYPE_INJECT_SCROLL_EVENT;
         msg.position = position;
@@ -140,6 +143,10 @@ public final class ControlMessage {
         return keycode;
     }
 
+    public int getActionButton() {
+        return actionButton;
+    }
+
     public int getButtons() {
         return buttons;
     }
@@ -156,11 +163,11 @@ public final class ControlMessage {
         return position;
     }
 
-    public int getHScroll() {
+    public float getHScroll() {
         return hScroll;
     }
 
-    public int getVScroll() {
+    public float getVScroll() {
         return vScroll;
     }
 

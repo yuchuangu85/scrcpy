@@ -90,13 +90,14 @@ static void test_serialize_inject_touch_event(void) {
                 },
             },
             .pressure = 1.0f,
+            .action_button = AMOTION_EVENT_BUTTON_PRIMARY,
             .buttons = AMOTION_EVENT_BUTTON_PRIMARY,
         },
     };
 
     unsigned char buf[SC_CONTROL_MSG_MAX_SIZE];
     size_t size = sc_control_msg_serialize(&msg, buf);
-    assert(size == 28);
+    assert(size == 32);
 
     const unsigned char expected[] = {
         SC_CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT,
@@ -105,7 +106,8 @@ static void test_serialize_inject_touch_event(void) {
         0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0xc8, // 100 200
         0x04, 0x38, 0x07, 0x80, // 1080 1920
         0xff, 0xff, // pressure
-        0x00, 0x00, 0x00, 0x01 // AMOTION_EVENT_BUTTON_PRIMARY
+        0x00, 0x00, 0x00, 0x01, // AMOTION_EVENT_BUTTON_PRIMARY (action button)
+        0x00, 0x00, 0x00, 0x01, // AMOTION_EVENT_BUTTON_PRIMARY (buttons)
     };
     assert(!memcmp(buf, expected, sizeof(expected)));
 }
@@ -132,14 +134,14 @@ static void test_serialize_inject_scroll_event(void) {
 
     unsigned char buf[SC_CONTROL_MSG_MAX_SIZE];
     size_t size = sc_control_msg_serialize(&msg, buf);
-    assert(size == 25);
+    assert(size == 21);
 
     const unsigned char expected[] = {
         SC_CONTROL_MSG_TYPE_INJECT_SCROLL_EVENT,
         0x00, 0x00, 0x01, 0x04, 0x00, 0x00, 0x04, 0x02, // 260 1026
         0x04, 0x38, 0x07, 0x80, // 1080 1920
-        0x00, 0x00, 0x00, 0x01, // 1
-        0xFF, 0xFF, 0xFF, 0xFF, // -1
+        0x7F, 0xFF, // 1 (float encoded as i16)
+        0x80, 0x00, // -1 (float encoded as i16)
         0x00, 0x00, 0x00, 0x01, // 1
     };
     assert(!memcmp(buf, expected, sizeof(expected)));

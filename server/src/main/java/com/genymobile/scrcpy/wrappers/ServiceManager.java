@@ -1,39 +1,46 @@
 package com.genymobile.scrcpy.wrappers;
 
+import com.genymobile.scrcpy.FakeContext;
+
 import android.annotation.SuppressLint;
+import android.content.Context;
+import android.hardware.camera2.CameraManager;
 import android.os.IBinder;
 import android.os.IInterface;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 @SuppressLint("PrivateApi,DiscouragedPrivateApi")
 public final class ServiceManager {
 
-    public static final String PACKAGE_NAME = "com.android.shell";
-    public static final int USER_ID = 0;
+    private static final Method GET_SERVICE_METHOD;
 
-    private final Method getServiceMethod;
-
-    private WindowManager windowManager;
-    private DisplayManager displayManager;
-    private InputManager inputManager;
-    private PowerManager powerManager;
-    private StatusBarManager statusBarManager;
-    private ClipboardManager clipboardManager;
-    private ActivityManager activityManager;
-
-    public ServiceManager() {
+    static {
         try {
-            getServiceMethod = Class.forName("android.os.ServiceManager").getDeclaredMethod("getService", String.class);
+            GET_SERVICE_METHOD = Class.forName("android.os.ServiceManager").getDeclaredMethod("getService", String.class);
         } catch (Exception e) {
             throw new AssertionError(e);
         }
     }
 
-    private IInterface getService(String service, String type) {
+    private static WindowManager windowManager;
+    private static DisplayManager displayManager;
+    private static InputManager inputManager;
+    private static PowerManager powerManager;
+    private static StatusBarManager statusBarManager;
+    private static ClipboardManager clipboardManager;
+    private static ActivityManager activityManager;
+    private static CameraManager cameraManager;
+
+    private ServiceManager() {
+        /* not instantiable */
+    }
+
+    private static IInterface getService(String service, String type) {
         try {
-            IBinder binder = (IBinder) getServiceMethod.invoke(null, service);
+            IBinder binder = (IBinder) GET_SERVICE_METHOD.invoke(null, service);
             Method asInterfaceMethod = Class.forName(type + "$Stub").getMethod("asInterface", IBinder.class);
             return (IInterface) asInterfaceMethod.invoke(null, binder);
         } catch (Exception e) {
@@ -41,25 +48,42 @@ public final class ServiceManager {
         }
     }
 
-    public WindowManager getWindowManager() {
+    public static WindowManager getWindowManager() {
         if (windowManager == null) {
             windowManager = new WindowManager(getService("window", "android.view.IWindowManager"));
         }
         return windowManager;
     }
 
-    public DisplayManager getDisplayManager() {
+    public static DisplayManager getDisplayManager() {
         if (displayManager == null) {
-            displayManager = new DisplayManager(getService("display", "android.hardware.display.IDisplayManager"));
+            try {
+                Class<?> clazz = Class.forName("android.hardware.display.DisplayManagerGlobal");
+                Method getInstanceMethod = clazz.getDeclaredMethod("getInstance");
+                Object dmg = getInstanceMethod.invoke(null);
+                displayManager = new DisplayManager(dmg);
+            } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+                throw new AssertionError(e);
+            }
         }
         return displayManager;
     }
 
-    public InputManager getInputManager() {
+    public static Class<?> getInputManagerClass() {
+        try {
+            // Parts of the InputManager class have been moved to a new InputManagerGlobal class in Android 14 preview
+            return Class.forName("android.hardware.input.InputManagerGlobal");
+        } catch (ClassNotFoundException e) {
+            return android.hardware.input.InputManager.class;
+        }
+    }
+
+    public static InputManager getInputManager() {
         if (inputManager == null) {
             try {
-                Method getInstanceMethod = android.hardware.input.InputManager.class.getDeclaredMethod("getInstance");
-                android.hardware.input.InputManager im = (android.hardware.input.InputManager) getInstanceMethod.invoke(null);
+                Class<?> inputManagerClass = getInputManagerClass();
+                Method getInstanceMethod = inputManagerClass.getDeclaredMethod("getInstance");
+                Object im = getInstanceMethod.invoke(null);
                 inputManager = new InputManager(im);
             } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
                 throw new AssertionError(e);
@@ -68,21 +92,21 @@ public final class ServiceManager {
         return inputManager;
     }
 
-    public PowerManager getPowerManager() {
+    public static PowerManager getPowerManager() {
         if (powerManager == null) {
             powerManager = new PowerManager(getService("power", "android.os.IPowerManager"));
         }
         return powerManager;
     }
 
-    public StatusBarManager getStatusBarManager() {
+    public static StatusBarManager getStatusBarManager() {
         if (statusBarManager == null) {
             statusBarManager = new StatusBarManager(getService("statusbar", "com.android.internal.statusbar.IStatusBarService"));
         }
         return statusBarManager;
     }
 
-    public ClipboardManager getClipboardManager() {
+    public static ClipboardManager getClipboardManager() {
         if (clipboardManager == null) {
             IInterface clipboard = getService("clipboard", "android.content.IClipboard");
             if (clipboard == null) {
@@ -96,7 +120,7 @@ public final class ServiceManager {
         return clipboardManager;
     }
 
-    public ActivityManager getActivityManager() {
+    public static ActivityManager getActivityManager() {
         if (activityManager == null) {
             try {
                 // On old Android versions, the ActivityManager is not exposed via AIDL,
@@ -111,5 +135,17 @@ public final class ServiceManager {
         }
 
         return activityManager;
+    }
+
+    public static CameraManager getCameraManager() {
+        if (cameraManager == null) {
+            try {
+                Constructor<CameraManager> ctor = CameraManager.class.getDeclaredConstructor(Context.class);
+                cameraManager = ctor.newInstance(FakeContext.get());
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }
+        return cameraManager;
     }
 }

@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-
 public class ControlMessageReaderTest {
 
     @Test
@@ -94,7 +93,8 @@ public class ControlMessageReaderTest {
         dos.writeShort(1080);
         dos.writeShort(1920);
         dos.writeShort(0xffff); // pressure
-        dos.writeInt(MotionEvent.BUTTON_PRIMARY);
+        dos.writeInt(MotionEvent.BUTTON_PRIMARY); // action button
+        dos.writeInt(MotionEvent.BUTTON_PRIMARY); // buttons
 
         byte[] packet = bos.toByteArray();
 
@@ -112,6 +112,7 @@ public class ControlMessageReaderTest {
         Assert.assertEquals(1080, event.getPosition().getScreenSize().getWidth());
         Assert.assertEquals(1920, event.getPosition().getScreenSize().getHeight());
         Assert.assertEquals(1f, event.getPressure(), 0f); // must be exact
+        Assert.assertEquals(MotionEvent.BUTTON_PRIMARY, event.getActionButton());
         Assert.assertEquals(MotionEvent.BUTTON_PRIMARY, event.getButtons());
     }
 
@@ -126,8 +127,8 @@ public class ControlMessageReaderTest {
         dos.writeInt(1026);
         dos.writeShort(1080);
         dos.writeShort(1920);
-        dos.writeInt(1);
-        dos.writeInt(-1);
+        dos.writeShort(0); // 0.0f encoded as i16
+        dos.writeShort(0x8000); // -1.0f encoded as i16
         dos.writeInt(1);
 
         byte[] packet = bos.toByteArray();
@@ -143,8 +144,8 @@ public class ControlMessageReaderTest {
         Assert.assertEquals(1026, event.getPosition().getPoint().getY());
         Assert.assertEquals(1080, event.getPosition().getScreenSize().getWidth());
         Assert.assertEquals(1920, event.getPosition().getScreenSize().getHeight());
-        Assert.assertEquals(1, event.getHScroll());
-        Assert.assertEquals(-1, event.getVScroll());
+        Assert.assertEquals(0f, event.getHScroll(), 0f);
+        Assert.assertEquals(-1f, event.getVScroll(), 0f);
         Assert.assertEquals(1, event.getButtons());
     }
 

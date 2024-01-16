@@ -293,15 +293,11 @@ rotate_device(struct sc_controller *controller) {
 }
 
 static void
-rotate_client_left(struct sc_screen *screen) {
-    unsigned new_rotation = (screen->rotation + 1) % 4;
-    sc_screen_set_rotation(screen, new_rotation);
-}
-
-static void
-rotate_client_right(struct sc_screen *screen) {
-    unsigned new_rotation = (screen->rotation + 3) % 4;
-    sc_screen_set_rotation(screen, new_rotation);
+apply_orientation_transform(struct sc_screen *screen,
+                            enum sc_orientation transform) {
+    enum sc_orientation new_orientation =
+        sc_orientation_apply(screen->orientation, transform);
+    sc_screen_set_orientation(screen, new_orientation);
 }
 
 static void
@@ -335,8 +331,11 @@ simulate_virtual_finger(struct sc_input_manager *im,
     msg.inject_touch_event.action = action;
     msg.inject_touch_event.position.screen_size = im->screen->frame_size;
     msg.inject_touch_event.position.point = point;
-    msg.inject_touch_event.pointer_id = POINTER_ID_VIRTUAL_FINGER;
+    msg.inject_touch_event.pointer_id =
+        im->forward_all_clicks ? POINTER_ID_VIRTUAL_MOUSE
+                               : POINTER_ID_VIRTUAL_FINGER;
     msg.inject_touch_event.pressure = up ? 0.0f : 1.0f;
+    msg.inject_touch_event.action_button = 0;
     msg.inject_touch_event.buttons = 0;
 
     if (!sc_controller_push_msg(im->controller, &msg)) {
@@ -418,25 +417,47 @@ sc_input_manager_process_key(struct sc_input_manager *im,
                 }
                 return;
             case SDLK_DOWN:
-                if (controller && !shift) {
+                if (shift) {
+                    if (!repeat & down) {
+                        apply_orientation_transform(im->screen,
+                                                    SC_ORIENTATION_FLIP_180);
+                    }
+                } else if (controller) {
                     // forward repeated events
                     action_volume_down(controller, action);
                 }
                 return;
             case SDLK_UP:
-                if (controller && !shift) {
+                if (shift) {
+                    if (!repeat & down) {
+                        apply_orientation_transform(im->screen,
+                                                    SC_ORIENTATION_FLIP_180);
+                    }
+                } else if (controller) {
                     // forward repeated events
                     action_volume_up(controller, action);
                 }
                 return;
             case SDLK_LEFT:
-                if (!shift && !repeat && down) {
-                    rotate_client_left(im->screen);
+                if (!repeat && down) {
+                    if (shift) {
+                        apply_orientation_transform(im->screen,
+                                                    SC_ORIENTATION_FLIP_0);
+                    } else {
+                        apply_orientation_transform(im->screen,
+                                                    SC_ORIENTATION_270);
+                    }
                 }
                 return;
             case SDLK_RIGHT:
-                if (!shift && !repeat && down) {
-                    rotate_client_right(im->screen);
+                if (!repeat && down) {
+                    if (shift) {
+                        apply_orientation_transform(im->screen,
+                                                    SC_ORIENTATION_FLIP_0);
+                    } else {
+                        apply_orientation_transform(im->screen,
+                                                    SC_ORIENTATION_90);
+                    }
                 }
                 return;
             case SDLK_c:
@@ -564,6 +585,8 @@ sc_input_manager_process_mouse_motion(struct sc_input_manager *im,
                                                               event->x,
                                                               event->y),
         },
+        .pointer_id = im->forward_all_clicks ? POINTER_ID_MOUSE
+                                             : POINTER_ID_GENERIC_FINGER,
         .xrel = event->xrel,
         .yrel = event->yrel,
         .buttons_state =
@@ -687,6 +710,8 @@ sc_input_manager_process_mouse_button(struct sc_input_manager *im,
         },
         .action = sc_action_from_sdl_mousebutton_type(event->type),
         .button = sc_mouse_button_from_sdl(event->button),
+        .pointer_id = im->forward_all_clicks ? POINTER_ID_MOUSE
+                                             : POINTER_ID_GENERIC_FINGER,
         .buttons_state =
             sc_mouse_buttons_state_from_sdl(sdl_buttons_state,
                                             im->forward_all_clicks),
@@ -747,8 +772,13 @@ sc_input_manager_process_mouse_wheel(struct sc_input_manager *im,
             .point = sc_screen_convert_window_to_frame_coords(im->screen,
                                                               mouse_x, mouse_y),
         },
-        .hscroll = event->x,
-        .vscroll = event->y,
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+        .hscroll = CLAMP(event->preciseX, -1.0f, 1.0f),
+        .vscroll = CLAMP(event->preciseY, -1.0f, 1.0f),
+#else
+        .hscroll = CLAMP(event->x, -1, 1),
+        .vscroll = CLAMP(event->y, -1, 1),
+#endif
         .buttons_state =
             sc_mouse_buttons_state_from_sdl(buttons, im->forward_all_clicks),
     };
@@ -785,7 +815,8 @@ sc_input_manager_process_file(struct sc_input_manager *im,
 }
 
 void
-sc_input_manager_handle_event(struct sc_input_manager *im, SDL_Event *event) {
+sc_input_manager_handle_event(struct sc_input_manager *im,
+                              const SDL_Event *event) {
     bool control = im->controller;
     switch (event->type) {
         case SDL_TEXTINPUT:

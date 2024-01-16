@@ -22,7 +22,7 @@ sc_usb_on_disconnected(struct sc_usb *usb, void *userdata) {
     (void) userdata;
 
     SDL_Event event;
-    event.type = EVENT_USB_DEVICE_DISCONNECTED;
+    event.type = SC_EVENT_USB_DEVICE_DISCONNECTED;
     int ret = SDL_PushEvent(&event);
     if (ret < 0) {
         LOGE("Could not post USB disconnection event: %s", SDL_GetError());
@@ -34,7 +34,7 @@ event_loop(struct scrcpy_otg *s) {
     SDL_Event event;
     while (SDL_WaitEvent(&event)) {
         switch (event.type) {
-            case EVENT_USB_DEVICE_DISCONNECTED:
+            case SC_EVENT_USB_DEVICE_DISCONNECTED:
                 LOGW("Device disconnected");
                 return SCRCPY_EXIT_DISCONNECTED;
             case SDL_QUIT:
@@ -83,7 +83,7 @@ scrcpy_otg(struct scrcpy_options *options) {
 #ifdef _WIN32
     // On Windows, only one process could open a USB device
     // <https://github.com/Genymobile/scrcpy/issues/2773>
-    LOGI("Killing adb daemon (if any)...");
+    LOGI("Killing adb server (if any)...");
     unsigned flags = SC_ADB_NO_STDOUT | SC_ADB_NO_STDERR | SC_ADB_NO_LOGERR;
     // uninterruptible (intr == NULL), but in practice it's very quick
     sc_adb_kill_server(NULL, flags);
@@ -104,10 +104,6 @@ scrcpy_otg(struct scrcpy_options *options) {
     }
 
     usb_device_initialized = true;
-
-    LOGI("USB device: %s (%04x:%04x) %s %s", usb_device.serial,
-         (unsigned) usb_device.vid, (unsigned) usb_device.pid,
-         usb_device.manufacturer, usb_device.product);
 
     ok = sc_usb_connect(&s->usb, usb_device.device, &cbs, NULL);
     if (!ok) {

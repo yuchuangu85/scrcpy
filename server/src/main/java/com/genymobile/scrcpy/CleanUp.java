@@ -1,7 +1,5 @@
 package com.genymobile.scrcpy;
 
-import com.genymobile.scrcpy.wrappers.ServiceManager;
-
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Base64;
@@ -15,8 +13,6 @@ import java.io.IOException;
  * This is useful to restore some state when scrcpy is closed, even on device disconnection (which kills the scrcpy process).
  */
 public final class CleanUp {
-
-    public static final String SERVER_PATH = "/data/local/tmp/scrcpy-server.jar";
 
     // A simple struct to be passed from the main process to the cleanup process
     public static class Config implements Parcelable {
@@ -137,13 +133,13 @@ public final class CleanUp {
         String[] cmd = {"app_process", "/", CleanUp.class.getName(), config.toBase64()};
 
         ProcessBuilder builder = new ProcessBuilder(cmd);
-        builder.environment().put("CLASSPATH", SERVER_PATH);
+        builder.environment().put("CLASSPATH", Server.SERVER_PATH);
         builder.start();
     }
 
-    private static void unlinkSelf() {
+    public static void unlinkSelf() {
         try {
-            new File(SERVER_PATH).delete();
+            new File(Server.SERVER_PATH).delete();
         } catch (Exception e) {
             Ln.e("Could not unlink server", e);
         }
@@ -164,12 +160,10 @@ public final class CleanUp {
         Config config = Config.fromBase64(args[0]);
 
         if (config.disableShowTouches || config.restoreStayOn != -1) {
-            ServiceManager serviceManager = new ServiceManager();
-            Settings settings = new Settings(serviceManager);
             if (config.disableShowTouches) {
                 Ln.i("Disabling \"show touches\"");
                 try {
-                    settings.putValue(Settings.TABLE_SYSTEM, "show_touches", "0");
+                    Settings.putValue(Settings.TABLE_SYSTEM, "show_touches", "0");
                 } catch (SettingsException e) {
                     Ln.e("Could not restore \"show_touches\"", e);
                 }
@@ -177,7 +171,7 @@ public final class CleanUp {
             if (config.restoreStayOn != -1) {
                 Ln.i("Restoring \"stay awake\"");
                 try {
-                    settings.putValue(Settings.TABLE_GLOBAL, "stay_on_while_plugged_in", String.valueOf(config.restoreStayOn));
+                    Settings.putValue(Settings.TABLE_GLOBAL, "stay_on_while_plugged_in", String.valueOf(config.restoreStayOn));
                 } catch (SettingsException e) {
                     Ln.e("Could not restore \"stay_on_while_plugged_in\"", e);
                 }

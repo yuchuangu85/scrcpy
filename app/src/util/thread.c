@@ -1,6 +1,7 @@
 #include "thread.h"
 
 #include <assert.h>
+#include <string.h>
 #include <SDL2/SDL_thread.h>
 
 #include "log.h"
@@ -19,6 +20,39 @@ sc_thread_create(sc_thread *thread, sc_thread_fn fn, const char *name,
     }
 
     thread->thread = sdl_thread;
+    return true;
+}
+
+static SDL_ThreadPriority
+to_sdl_thread_priority(enum sc_thread_priority priority) {
+    switch (priority) {
+        case SC_THREAD_PRIORITY_TIME_CRITICAL:
+#ifdef SCRCPY_SDL_HAS_THREAD_PRIORITY_TIME_CRITICAL
+            return SDL_THREAD_PRIORITY_TIME_CRITICAL;
+#else
+            // fall through
+#endif
+        case SC_THREAD_PRIORITY_HIGH:
+            return SDL_THREAD_PRIORITY_HIGH;
+        case SC_THREAD_PRIORITY_NORMAL:
+            return SDL_THREAD_PRIORITY_NORMAL;
+        case SC_THREAD_PRIORITY_LOW:
+            return SDL_THREAD_PRIORITY_LOW;
+        default:
+            assert(!"Unknown thread priority");
+            return 0;
+    }
+}
+
+bool
+sc_thread_set_priority(enum sc_thread_priority priority) {
+    SDL_ThreadPriority sdl_priority = to_sdl_thread_priority(priority);
+    int r = SDL_SetThreadPriority(sdl_priority);
+    if (r) {
+        LOGD("Could not set thread priority: %s", SDL_GetError());
+        return false;
+    }
+
     return true;
 }
 
