@@ -1,5 +1,7 @@
 #include "options.h"
 
+#include <stddef.h>
+
 const struct scrcpy_options scrcpy_options_default = {
     .serial = NULL,
     .crop = NULL,
@@ -21,8 +23,23 @@ const struct scrcpy_options scrcpy_options_default = {
     .video_source = SC_VIDEO_SOURCE_DISPLAY,
     .audio_source = SC_AUDIO_SOURCE_AUTO,
     .record_format = SC_RECORD_FORMAT_AUTO,
-    .keyboard_input_mode = SC_KEYBOARD_INPUT_MODE_INJECT,
-    .mouse_input_mode = SC_MOUSE_INPUT_MODE_INJECT,
+    .keyboard_input_mode = SC_KEYBOARD_INPUT_MODE_AUTO,
+    .mouse_input_mode = SC_MOUSE_INPUT_MODE_AUTO,
+    .gamepad_input_mode = SC_GAMEPAD_INPUT_MODE_DISABLED,
+    .mouse_bindings = {
+        .pri = {
+            .right_click = SC_MOUSE_BINDING_AUTO,
+            .middle_click = SC_MOUSE_BINDING_AUTO,
+            .click4 = SC_MOUSE_BINDING_AUTO,
+            .click5 = SC_MOUSE_BINDING_AUTO,
+        },
+        .sec = {
+            .right_click = SC_MOUSE_BINDING_AUTO,
+            .middle_click = SC_MOUSE_BINDING_AUTO,
+            .click4 = SC_MOUSE_BINDING_AUTO,
+            .click5 = SC_MOUSE_BINDING_AUTO,
+        },
+    },
     .camera_facing = SC_CAMERA_FACING_ANY,
     .port_range = {
         .first = DEFAULT_LOCAL_PORT_RANGE_FIRST,
@@ -30,26 +47,26 @@ const struct scrcpy_options scrcpy_options_default = {
     },
     .tunnel_host = 0,
     .tunnel_port = 0,
-    .shortcut_mods = {
-        .data = {SC_SHORTCUT_MOD_LALT, SC_SHORTCUT_MOD_LSUPER},
-        .count = 2,
-    },
+    .shortcut_mods = SC_SHORTCUT_MOD_LALT | SC_SHORTCUT_MOD_LSUPER,
     .max_size = 0,
     .video_bit_rate = 0,
     .audio_bit_rate = 0,
-    .max_fps = 0,
-    .lock_video_orientation = SC_LOCK_VIDEO_ORIENTATION_UNLOCKED,
+    .max_fps = NULL,
+    .capture_orientation = SC_ORIENTATION_0,
+    .capture_orientation_lock = SC_ORIENTATION_UNLOCKED,
     .display_orientation = SC_ORIENTATION_0,
     .record_orientation = SC_ORIENTATION_0,
+    .display_ime_policy = SC_DISPLAY_IME_POLICY_UNDEFINED,
     .window_x = SC_WINDOW_POSITION_UNDEFINED,
     .window_y = SC_WINDOW_POSITION_UNDEFINED,
     .window_width = 0,
     .window_height = 0,
     .display_id = 0,
-    .display_buffer = 0,
+    .video_buffer = 0,
     .audio_buffer = -1, // depends on the audio format,
     .audio_output_buffer = SC_TICK_FROM_MS(5),
     .time_limit = 0,
+    .screen_off_timeout = -1,
 #ifdef HAVE_V4L2
     .v4l2_device = NULL,
     .v4l2_buffer = 0,
@@ -71,7 +88,6 @@ const struct scrcpy_options scrcpy_options_default = {
     .force_adb_forward = false,
     .disable_screensaver = false,
     .forward_key_repeat = true,
-    .forward_all_clicks = false,
     .legacy_paste = false,
     .power_off_on_close = false,
     .clipboard_autosync = true,
@@ -89,6 +105,14 @@ const struct scrcpy_options scrcpy_options_default = {
     .kill_adb_on_close = false,
     .camera_high_speed = false,
     .list = 0,
+    .window = true,
+    .mouse_hover = true,
+    .audio_dup = false,
+    .new_display = NULL,
+    .start_app = NULL,
+    .angle = NULL,
+    .vd_destroy_content = true,
+    .vd_system_decorations = true,
 };
 
 enum sc_orientation

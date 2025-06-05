@@ -10,36 +10,40 @@ scrcpy --no-control
 scrcpy -n   # short version
 ```
 
+## Keyboard and mouse
 
-## Text injection preference
+Read [keyboard](keyboard.md) and [mouse](mouse.md).
 
-Two kinds of [events][textevents] are generated when typing text:
- - _key events_, signaling that a key is pressed or released;
- - _text events_, signaling that a text has been entered.
 
-By default, letters are injected using key events, so that the keyboard behaves
-as expected in games (typically for WASD keys).
+## Control only
 
-But this may [cause issues][prefertext]. If you encounter such a problem, you
-can avoid it by:
+To control the device without mirroring:
 
 ```bash
-scrcpy --prefer-text
+scrcpy --no-video --no-audio
 ```
 
-(but this will break keyboard behavior in games)
+By default, the mouse is disabled when video playback is turned off.
 
-On the contrary, you could force to always inject raw key events:
+To control the device using a relative mouse, enable UHID mouse mode:
 
 ```bash
-scrcpy --raw-key-events
+scrcpy --no-video --no-audio --mouse=uhid
+scrcpy --no-video --no-audio -M  # short version
 ```
 
-These options have no effect on HID keyboard (all key events are sent as
-scancodes in this mode).
+To also use a UHID keyboard, set it explicitly:
 
-[textevents]: https://blog.rom1v.com/2018/03/introducing-scrcpy/#handle-text-input
-[prefertext]: https://github.com/Genymobile/scrcpy/issues/650#issuecomment-512945343
+```bash
+scrcpy --no-video --no-audio --mouse=uhid --keyboard=uhid
+scrcpy --no-video --no-audio -MK  # short version
+```
+
+To use AOA instead (over USB only):
+
+```bash
+scrcpy --no-video --no-audio --keyboard=aoa --mouse=aoa
+```
 
 
 ## Copy-paste
@@ -85,7 +89,8 @@ way as <kbd>MOD</kbd>+<kbd>Shift</kbd>+<kbd>v</kbd>).
 To disable automatic clipboard synchronization, use
 `--no-clipboard-autosync`.
 
-## Pinch-to-zoom
+
+## Pinch-to-zoom, rotate and tilt simulation
 
 To simulate "pinch-to-zoom": <kbd>Ctrl</kbd>+_click-and-move_.
 
@@ -93,33 +98,23 @@ More precisely, hold down <kbd>Ctrl</kbd> while pressing the left-click button.
 Until the left-click button is released, all mouse movements scale and rotate
 the content (if supported by the app) relative to the center of the screen.
 
+https://github.com/Genymobile/scrcpy/assets/543275/26c4a920-9805-43f1-8d4c-608752d04767
+
+To simulate a vertical tilt gesture: <kbd>Shift</kbd>+_click-and-move-up-or-down_.
+
+https://github.com/Genymobile/scrcpy/assets/543275/1e252341-4a90-4b29-9d11-9153b324669f
+
+Similarly, to simulate a horizontal tilt gesture:
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+_click-and-move-left-or-right_.
+
 Technically, _scrcpy_ generates additional touch events from a "virtual finger"
-at a location inverted through the center of the screen.
+at a location inverted through the center of the screen. When pressing
+<kbd>Ctrl</kbd> the _x_ and _y_ coordinates are inverted. Using <kbd>Shift</kbd>
+only inverts _x_, whereas using <kbd>Ctrl</kbd>+<kbd>Shift</kbd> only inverts
+_y_.
 
+This only works for the default mouse mode (`--mouse=sdk`).
 
-## Key repeat
-
-By default, holding a key down generates repeated key events. This can cause
-performance problems in some games, where these events are useless anyway.
-
-To avoid forwarding repeated key events:
-
-```bash
-scrcpy --no-key-repeat
-```
-
-This option has no effect on HID keyboard (key repeat is handled by Android
-directly in this mode).
-
-
-## Right-click and middle-click
-
-By default, right-click triggers BACK (or POWER on) and middle-click triggers
-HOME. To disable these shortcuts and forward the clicks to the device instead:
-
-```bash
-scrcpy --forward-all-clicks
-```
 
 ## File drop
 
@@ -143,7 +138,3 @@ The target directory can be changed on start:
 ```bash
 scrcpy --push-target=/sdcard/Movies/
 ```
-
-## Physical keyboard and mouse simulation
-
-See the dedicated [HID/OTG](hid-otg.md) page.

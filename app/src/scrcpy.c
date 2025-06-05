@@ -1,10 +1,11 @@
 #include "scrcpy.h"
 
+#include <assert.h>
+#include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <libavformat/avformat.h>
-#include <sys/time.h>
 #include <SDL2/SDL.h>
 
 #ifdef _WIN32
@@ -20,22 +21,26 @@
 #include "demuxer.h"
 #include "events.h"
 #include "file_pusher.h"
-#include "keyboard_inject.h"
-#include "mouse_inject.h"
+#include "keyboard_sdk.h"
+#include "mouse_sdk.h"
 #include "recorder.h"
 #include "screen.h"
 #include "server.h"
+#include "uhid/gamepad_uhid.h"
+#include "uhid/keyboard_uhid.h"
+#include "uhid/mouse_uhid.h"
 #ifdef HAVE_USB
 # include "usb/aoa_hid.h"
-# include "usb/hid_keyboard.h"
-# include "usb/hid_mouse.h"
+# include "usb/gamepad_aoa.h"
+# include "usb/keyboard_aoa.h"
+# include "usb/mouse_aoa.h"
 # include "usb/usb.h"
 #endif
 #include "util/acksync.h"
 #include "util/log.h"
-#include "util/net.h"
 #include "util/rand.h"
 #include "util/timeout.h"
+#include "util/tick.h"
 #ifdef HAVE_V4L2
 # include "v4l2_sink.h"
 #endif
@@ -49,7 +54,7 @@ struct scrcpy {
     struct sc_decoder video_decoder;
     struct sc_decoder audio_decoder;
     struct sc_recorder recorder;
-    struct sc_delay_buffer display_buffer;
+    struct sc_delay_buffer video_buffer;
 #ifdef HAVE_V4L2
     struct sc_v4l2_sink v4l2_sink;
     struct sc_delay_buffer v4l2_buffer;
@@ -62,37 +67,34 @@ struct scrcpy {
     // sequence/ack helper to synchronize clipboard and Ctrl+v via HID
     struct sc_acksync acksync;
 #endif
+    struct sc_uhid_devices uhid_devices;
     union {
-        struct sc_keyboard_inject keyboard_inject;
+        struct sc_keyboard_sdk keyboard_sdk;
+        struct sc_keyboard_uhid keyboard_uhid;
 #ifdef HAVE_USB
-        struct sc_hid_keyboard keyboard_hid;
+        struct sc_keyboard_aoa keyboard_aoa;
 #endif
     };
     union {
-        struct sc_mouse_inject mouse_inject;
+        struct sc_mouse_sdk mouse_sdk;
+        struct sc_mouse_uhid mouse_uhid;
 #ifdef HAVE_USB
-        struct sc_hid_mouse mouse_hid;
+        struct sc_mouse_aoa mouse_aoa;
+#endif
+    };
+    union {
+        struct sc_gamepad_uhid gamepad_uhid;
+#ifdef HAVE_USB
+        struct sc_gamepad_aoa gamepad_aoa;
 #endif
     };
     struct sc_timeout timeout;
 };
 
-static inline void
-push_event(uint32_t type, const char *name) {
-    SDL_Event event;
-    event.type = type;
-    int ret = SDL_PushEvent(&event);
-    if (ret < 0) {
-        LOGE("Could not post %s event: %s", name, SDL_GetError());
-        // What could we do?
-    }
-}
-#define PUSH_EVENT(TYPE) push_event(TYPE, # TYPE)
-
 #ifdef _WIN32
 static BOOL WINAPI windows_ctrl_handler(DWORD ctrl_type) {
     if (ctrl_type == CTRL_C_EVENT) {
-        PUSH_EVENT(SDL_QUIT);
+        sc_push_event(SDL_QUIT);
         return TRUE;
     }
     return FALSE;
@@ -101,7 +103,6 @@ static BOOL WINAPI windows_ctrl_handler(DWORD ctrl_type) {
 
 static void
 sdl_set_hints(const char *render_driver) {
-
     if (render_driver && !SDL_SetHint(SDL_HINT_RENDER_DRIVER, render_driver)) {
         LOGW("Could not set render driver");
     }
@@ -135,6 +136,10 @@ sdl_set_hints(const char *render_driver) {
     // Do not minimize on focus loss
     if (!SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0")) {
         LOGW("Could not disable minimize on focus loss");
+    }
+
+    if (!SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1")) {
+        LOGW("Could not allow joystick background events");
     }
 }
 
@@ -170,8 +175,14 @@ event_loop(struct scrcpy *s) {
             case SC_EVENT_DEMUXER_ERROR:
                 LOGE("Demuxer error");
                 return SCRCPY_EXIT_FAILURE;
+            case SC_EVENT_CONTROLLER_ERROR:
+                LOGE("Controller error");
+                return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_RECORDER_ERROR:
                 LOGE("Recorder error");
+                return SCRCPY_EXIT_FAILURE;
+            case SC_EVENT_AOA_OPEN_ERROR:
+                LOGE("AOA open error");
                 return SCRCPY_EXIT_FAILURE;
             case SC_EVENT_TIME_LIMIT_REACHED:
                 LOGI("Time limit reached");
@@ -179,6 +190,12 @@ event_loop(struct scrcpy *s) {
             case SDL_QUIT:
                 LOGD("User requested to quit");
                 return SCRCPY_EXIT_SUCCESS;
+            case SC_EVENT_RUN_ON_MAIN_THREAD: {
+                sc_runnable_fn run = event.user.data1;
+                void *userdata = event.user.data2;
+                run(userdata);
+                break;
+            }
             default:
                 if (!sc_screen_handle_event(&s->screen, &event)) {
                     return SCRCPY_EXIT_FAILURE;
@@ -187,6 +204,21 @@ event_loop(struct scrcpy *s) {
         }
     }
     return SCRCPY_EXIT_FAILURE;
+}
+
+static void
+terminate_event_loop(void) {
+    sc_reject_new_runnables();
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SC_EVENT_RUN_ON_MAIN_THREAD) {
+            // Make sure all posted runnables are run, to avoid memory leaks
+            sc_runnable_fn run = event.user.data1;
+            void *userdata = event.user.data2;
+            run(userdata);
+        }
+    }
 }
 
 // Return true on success, false on error
@@ -223,7 +255,7 @@ sc_recorder_on_ended(struct sc_recorder *recorder, bool success,
     (void) userdata;
 
     if (!success) {
-        PUSH_EVENT(SC_EVENT_RECORDER_ERROR);
+        sc_push_event(SC_EVENT_RECORDER_ERROR);
     }
 }
 
@@ -237,9 +269,9 @@ sc_video_demuxer_on_ended(struct sc_demuxer *demuxer,
     assert(status != SC_DEMUXER_STATUS_DISABLED);
 
     if (status == SC_DEMUXER_STATUS_EOS) {
-        PUSH_EVENT(SC_EVENT_DEVICE_DISCONNECTED);
+        sc_push_event(SC_EVENT_DEVICE_DISCONNECTED);
     } else {
-        PUSH_EVENT(SC_EVENT_DEMUXER_ERROR);
+        sc_push_event(SC_EVENT_DEMUXER_ERROR);
     }
 }
 
@@ -253,11 +285,26 @@ sc_audio_demuxer_on_ended(struct sc_demuxer *demuxer,
     // Contrary to the video demuxer, keep mirroring if only the audio fails
     // (unless --require-audio is set).
     if (status == SC_DEMUXER_STATUS_EOS) {
-        PUSH_EVENT(SC_EVENT_DEVICE_DISCONNECTED);
+        sc_push_event(SC_EVENT_DEVICE_DISCONNECTED);
     } else if (status == SC_DEMUXER_STATUS_ERROR
             || (status == SC_DEMUXER_STATUS_DISABLED
                 && options->require_audio)) {
-        PUSH_EVENT(SC_EVENT_DEMUXER_ERROR);
+        sc_push_event(SC_EVENT_DEMUXER_ERROR);
+    }
+}
+
+static void
+sc_controller_on_ended(struct sc_controller *controller, bool error,
+                       void *userdata) {
+    // Note: this function may be called twice, once from the controller thread
+    // and once from the receiver thread
+    (void) controller;
+    (void) userdata;
+
+    if (error) {
+        sc_push_event(SC_EVENT_CONTROLLER_ERROR);
+    } else {
+        sc_push_event(SC_EVENT_DEVICE_DISCONNECTED);
     }
 }
 
@@ -266,7 +313,7 @@ sc_server_on_connection_failed(struct sc_server *server, void *userdata) {
     (void) server;
     (void) userdata;
 
-    PUSH_EVENT(SC_EVENT_SERVER_CONNECTION_FAILED);
+    sc_push_event(SC_EVENT_SERVER_CONNECTION_FAILED);
 }
 
 static void
@@ -274,7 +321,7 @@ sc_server_on_connected(struct sc_server *server, void *userdata) {
     (void) server;
     (void) userdata;
 
-    PUSH_EVENT(SC_EVENT_SERVER_CONNECTED);
+    sc_push_event(SC_EVENT_SERVER_CONNECTED);
 }
 
 static void
@@ -292,7 +339,7 @@ sc_timeout_on_timeout(struct sc_timeout *timeout, void *userdata) {
     (void) timeout;
     (void) userdata;
 
-    PUSH_EVENT(SC_EVENT_TIME_LIMIT_REACHED);
+    sc_push_event(SC_EVENT_TIME_LIMIT_REACHED);
 }
 
 // Generate a scrcpy id to differentiate multiple running scrcpy instances
@@ -304,9 +351,28 @@ scrcpy_generate_scid(void) {
     return sc_rand_u32(&rand) & 0x7FFFFFFF;
 }
 
+static void
+init_sdl_gamepads(void) {
+    // Trigger a SDL_CONTROLLERDEVICEADDED event for all gamepads already
+    // connected
+    int num_joysticks = SDL_NumJoysticks();
+    for (int i = 0; i < num_joysticks; ++i) {
+        if (SDL_IsGameController(i)) {
+            SDL_Event event;
+            event.cdevice.type = SDL_CONTROLLERDEVICEADDED;
+            event.cdevice.which = i;
+            SDL_PushEvent(&event);
+        }
+    }
+}
+
 enum scrcpy_exit_code
 scrcpy(struct scrcpy_options *options) {
     static struct scrcpy scrcpy;
+#ifndef NDEBUG
+    // Detect missing initializations
+    memset(&scrcpy, 42, sizeof(scrcpy));
+#endif
     struct scrcpy *s = &scrcpy;
 
     // Minimal SDL initialization
@@ -330,8 +396,9 @@ scrcpy(struct scrcpy_options *options) {
     bool audio_demuxer_started = false;
 #ifdef HAVE_USB
     bool aoa_hid_initialized = false;
-    bool hid_keyboard_initialized = false;
-    bool hid_mouse_initialized = false;
+    bool keyboard_aoa_initialized = false;
+    bool mouse_aoa_initialized = false;
+    bool gamepad_aoa_initialized = false;
 #endif
     bool controller_initialized = false;
     bool controller_started = false;
@@ -362,11 +429,17 @@ scrcpy(struct scrcpy_options *options) {
         .video_bit_rate = options->video_bit_rate,
         .audio_bit_rate = options->audio_bit_rate,
         .max_fps = options->max_fps,
-        .lock_video_orientation = options->lock_video_orientation,
+        .angle = options->angle,
+        .screen_off_timeout = options->screen_off_timeout,
+        .capture_orientation = options->capture_orientation,
+        .capture_orientation_lock = options->capture_orientation_lock,
         .control = options->control,
         .display_id = options->display_id,
+        .new_display = options->new_display,
+        .display_ime_policy = options->display_ime_policy,
         .video = options->video,
         .audio = options->audio,
+        .audio_dup = options->audio_dup,
         .show_touches = options->show_touches,
         .stay_awake = options->stay_awake,
         .video_codec_options = options->video_codec_options,
@@ -387,6 +460,8 @@ scrcpy(struct scrcpy_options *options) {
         .power_on = options->power_on,
         .kill_adb_on_close = options->kill_adb_on_close,
         .camera_high_speed = options->camera_high_speed,
+        .vd_destroy_content = options->vd_destroy_content,
+        .vd_system_decorations = options->vd_system_decorations,
         .list = options->list,
     };
 
@@ -397,6 +472,12 @@ scrcpy(struct scrcpy_options *options) {
     };
     if (!sc_server_init(&s->server, &params, &cbs, NULL)) {
         return SCRCPY_EXIT_FAILURE;
+    }
+
+    if (options->window) {
+        // Set hints before starting the server thread to avoid race conditions
+        // in SDL
+        sdl_set_hints(options->render_driver);
     }
 
     if (!sc_server_start(&s->server)) {
@@ -415,11 +496,7 @@ scrcpy(struct scrcpy_options *options) {
     assert(!options->video_playback || options->video);
     assert(!options->audio_playback || options->audio);
 
-    if (options->video_playback) {
-        sdl_set_hints(options->render_driver);
-    }
-
-    if (options->video_playback ||
+    if (options->window ||
             (options->control && options->clipboard_autosync)) {
         // Initialize the video subsystem even if --no-video or
         // --no-video-playback is passed so that clipboard synchronization
@@ -439,6 +516,13 @@ scrcpy(struct scrcpy_options *options) {
     if (options->audio_playback) {
         if (SDL_Init(SDL_INIT_AUDIO)) {
             LOGE("Could not initialize SDL audio: %s", SDL_GetError());
+            goto end;
+        }
+    }
+
+    if (options->gamepad_input_mode != SC_GAMEPAD_INPUT_MODE_DISABLED) {
+        if (SDL_Init(SDL_INIT_GAMECONTROLLER)) {
+            LOGE("Could not initialize SDL gamepad: %s", SDL_GetError());
             goto end;
         }
     }
@@ -540,14 +624,29 @@ scrcpy(struct scrcpy_options *options) {
     struct sc_controller *controller = NULL;
     struct sc_key_processor *kp = NULL;
     struct sc_mouse_processor *mp = NULL;
+    struct sc_gamepad_processor *gp = NULL;
 
     if (options->control) {
+        static const struct sc_controller_callbacks controller_cbs = {
+            .on_ended = sc_controller_on_ended,
+        };
+
+        if (!sc_controller_init(&s->controller, s->server.control_socket,
+            &controller_cbs, NULL)) {
+            goto end;
+        }
+        controller_initialized = true;
+
+        controller = &s->controller;
+
 #ifdef HAVE_USB
-        bool use_hid_keyboard =
-            options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_HID;
-        bool use_hid_mouse =
-            options->mouse_input_mode == SC_MOUSE_INPUT_MODE_HID;
-        if (use_hid_keyboard || use_hid_mouse) {
+        bool use_keyboard_aoa =
+            options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_AOA;
+        bool use_mouse_aoa =
+            options->mouse_input_mode == SC_MOUSE_INPUT_MODE_AOA;
+        bool use_gamepad_aoa =
+            options->gamepad_input_mode == SC_GAMEPAD_INPUT_MODE_AOA;
+        if (use_keyboard_aoa || use_mouse_aoa || use_gamepad_aoa) {
             bool ok = sc_acksync_init(&s->acksync);
             if (!ok) {
                 goto end;
@@ -557,7 +656,7 @@ scrcpy(struct scrcpy_options *options) {
             if (!ok) {
                 LOGE("Failed to initialize USB");
                 sc_acksync_destroy(&s->acksync);
-                goto aoa_hid_end;
+                goto end;
             }
 
             assert(serial);
@@ -565,7 +664,7 @@ scrcpy(struct scrcpy_options *options) {
             ok = sc_usb_select_device(&s->usb, serial, &usb_device);
             if (!ok) {
                 sc_usb_destroy(&s->usb);
-                goto aoa_hid_end;
+                goto end;
             }
 
             LOGI("USB device: %s (%04" PRIx16 ":%04" PRIx16 ") %s %s",
@@ -578,7 +677,7 @@ scrcpy(struct scrcpy_options *options) {
                 LOGE("Failed to connect to USB device %s", serial);
                 sc_usb_destroy(&s->usb);
                 sc_acksync_destroy(&s->acksync);
-                goto aoa_hid_end;
+                goto end;
             }
 
             ok = sc_aoa_init(&s->aoa, &s->usb, &s->acksync);
@@ -587,113 +686,122 @@ scrcpy(struct scrcpy_options *options) {
                 sc_usb_disconnect(&s->usb);
                 sc_usb_destroy(&s->usb);
                 sc_acksync_destroy(&s->acksync);
-                goto aoa_hid_end;
+                goto end;
             }
 
-            if (use_hid_keyboard) {
-                if (sc_hid_keyboard_init(&s->keyboard_hid, &s->aoa)) {
-                    hid_keyboard_initialized = true;
-                    kp = &s->keyboard_hid.key_processor;
+            bool aoa_fail = false;
+            if (use_keyboard_aoa) {
+                if (sc_keyboard_aoa_init(&s->keyboard_aoa, &s->aoa)) {
+                    keyboard_aoa_initialized = true;
+                    kp = &s->keyboard_aoa.key_processor;
                 } else {
                     LOGE("Could not initialize HID keyboard");
+                    aoa_fail = true;
+                    goto aoa_complete;
                 }
             }
 
-            if (use_hid_mouse) {
-                if (sc_hid_mouse_init(&s->mouse_hid, &s->aoa)) {
-                    hid_mouse_initialized = true;
-                    mp = &s->mouse_hid.mouse_processor;
+            if (use_mouse_aoa) {
+                if (sc_mouse_aoa_init(&s->mouse_aoa, &s->aoa)) {
+                    mouse_aoa_initialized = true;
+                    mp = &s->mouse_aoa.mouse_processor;
                 } else {
                     LOGE("Could not initialized HID mouse");
+                    aoa_fail = true;
+                    goto aoa_complete;
                 }
             }
 
-            bool need_aoa = hid_keyboard_initialized || hid_mouse_initialized;
+            if (use_gamepad_aoa) {
+                sc_gamepad_aoa_init(&s->gamepad_aoa, &s->aoa);
+                gp = &s->gamepad_aoa.gamepad_processor;
+                gamepad_aoa_initialized = true;
+            }
 
-            if (!need_aoa || !sc_aoa_start(&s->aoa)) {
+aoa_complete:
+            if (aoa_fail || !sc_aoa_start(&s->aoa)) {
                 sc_acksync_destroy(&s->acksync);
                 sc_usb_disconnect(&s->usb);
                 sc_usb_destroy(&s->usb);
                 sc_aoa_destroy(&s->aoa);
-                goto aoa_hid_end;
+                goto end;
             }
 
             acksync = &s->acksync;
 
             aoa_hid_initialized = true;
-
-aoa_hid_end:
-            if (!aoa_hid_initialized) {
-                if (hid_keyboard_initialized) {
-                    sc_hid_keyboard_destroy(&s->keyboard_hid);
-                    hid_keyboard_initialized = false;
-                }
-                if (hid_mouse_initialized) {
-                    sc_hid_mouse_destroy(&s->mouse_hid);
-                    hid_mouse_initialized = false;
-                }
-            }
-
-            if (use_hid_keyboard && !hid_keyboard_initialized) {
-                LOGE("Fallback to default keyboard injection method "
-                     "(-K/--hid-keyboard ignored)");
-                options->keyboard_input_mode = SC_KEYBOARD_INPUT_MODE_INJECT;
-            }
-
-            if (use_hid_mouse && !hid_mouse_initialized) {
-                LOGE("Fallback to default mouse injection method "
-                     "(-M/--hid-mouse ignored)");
-                options->mouse_input_mode = SC_MOUSE_INPUT_MODE_INJECT;
-            }
         }
 #else
-        assert(options->keyboard_input_mode != SC_KEYBOARD_INPUT_MODE_HID);
-        assert(options->mouse_input_mode != SC_MOUSE_INPUT_MODE_HID);
+        assert(options->keyboard_input_mode != SC_KEYBOARD_INPUT_MODE_AOA);
+        assert(options->mouse_input_mode != SC_MOUSE_INPUT_MODE_AOA);
 #endif
 
-        // keyboard_input_mode may have been reset if HID mode failed
-        if (options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_INJECT) {
-            sc_keyboard_inject_init(&s->keyboard_inject, &s->controller,
-                                    options->key_inject_mode,
-                                    options->forward_key_repeat);
-            kp = &s->keyboard_inject.key_processor;
+        struct sc_keyboard_uhid *uhid_keyboard = NULL;
+
+        if (options->keyboard_input_mode == SC_KEYBOARD_INPUT_MODE_SDK) {
+            sc_keyboard_sdk_init(&s->keyboard_sdk, &s->controller,
+                                 options->key_inject_mode,
+                                 options->forward_key_repeat);
+            kp = &s->keyboard_sdk.key_processor;
+        } else if (options->keyboard_input_mode
+                == SC_KEYBOARD_INPUT_MODE_UHID) {
+            bool ok = sc_keyboard_uhid_init(&s->keyboard_uhid, &s->controller);
+            if (!ok) {
+                goto end;
+            }
+            kp = &s->keyboard_uhid.key_processor;
+            uhid_keyboard = &s->keyboard_uhid;
         }
 
-        // mouse_input_mode may have been reset if HID mode failed
-        if (options->mouse_input_mode == SC_MOUSE_INPUT_MODE_INJECT) {
-            sc_mouse_inject_init(&s->mouse_inject, &s->controller);
-            mp = &s->mouse_inject.mouse_processor;
+        if (options->mouse_input_mode == SC_MOUSE_INPUT_MODE_SDK) {
+            sc_mouse_sdk_init(&s->mouse_sdk, &s->controller,
+                              options->mouse_hover);
+            mp = &s->mouse_sdk.mouse_processor;
+        } else if (options->mouse_input_mode == SC_MOUSE_INPUT_MODE_UHID) {
+            bool ok = sc_mouse_uhid_init(&s->mouse_uhid, &s->controller);
+            if (!ok) {
+                goto end;
+            }
+            mp = &s->mouse_uhid.mouse_processor;
         }
 
-        if (!sc_controller_init(&s->controller, s->server.control_socket,
-                                acksync)) {
-            goto end;
+        if (options->gamepad_input_mode == SC_GAMEPAD_INPUT_MODE_UHID) {
+            sc_gamepad_uhid_init(&s->gamepad_uhid, &s->controller);
+            gp = &s->gamepad_uhid.gamepad_processor;
         }
-        controller_initialized = true;
+
+        struct sc_uhid_devices *uhid_devices = NULL;
+        if (uhid_keyboard) {
+            sc_uhid_devices_init(&s->uhid_devices, uhid_keyboard);
+            uhid_devices = &s->uhid_devices;
+        }
+
+        sc_controller_configure(&s->controller, acksync, uhid_devices);
 
         if (!sc_controller_start(&s->controller)) {
             goto end;
         }
         controller_started = true;
-        controller = &s->controller;
     }
 
     // There is a controller if and only if control is enabled
     assert(options->control == !!controller);
 
-    if (options->video_playback) {
+    if (options->window) {
         const char *window_title =
             options->window_title ? options->window_title : info->device_name;
 
         struct sc_screen_params screen_params = {
+            .video = options->video_playback,
             .controller = controller,
             .fp = fp,
             .kp = kp,
             .mp = mp,
-            .forward_all_clicks = options->forward_all_clicks,
+            .gp = gp,
+            .mouse_bindings = options->mouse_bindings,
             .legacy_paste = options->legacy_paste,
             .clipboard_autosync = options->clipboard_autosync,
-            .shortcut_mods = &options->shortcut_mods,
+            .shortcut_mods = options->shortcut_mods,
             .window_title = window_title,
             .always_on_top = options->always_on_top,
             .window_x = options->window_x,
@@ -707,20 +815,22 @@ aoa_hid_end:
             .start_fps_counter = options->start_fps_counter,
         };
 
-        struct sc_frame_source *src = &s->video_decoder.frame_source;
-        if (options->display_buffer) {
-            sc_delay_buffer_init(&s->display_buffer, options->display_buffer,
-                                 true);
-            sc_frame_source_add_sink(src, &s->display_buffer.frame_sink);
-            src = &s->display_buffer.frame_source;
-        }
-
         if (!sc_screen_init(&s->screen, &screen_params)) {
             goto end;
         }
         screen_initialized = true;
 
-        sc_frame_source_add_sink(src, &s->screen.frame_sink);
+        if (options->video_playback) {
+            struct sc_frame_source *src = &s->video_decoder.frame_source;
+            if (options->video_buffer) {
+                sc_delay_buffer_init(&s->video_buffer,
+                                     options->video_buffer, true);
+                sc_frame_source_add_sink(src, &s->video_buffer.frame_sink);
+                src = &s->video_buffer.frame_source;
+            }
+
+            sc_frame_source_add_sink(src, &s->screen.frame_sink);
+        }
     }
 
     if (options->audio_playback) {
@@ -770,11 +880,11 @@ aoa_hid_end:
     // everything is set up
     if (options->control && options->turn_screen_off) {
         struct sc_control_msg msg;
-        msg.type = SC_CONTROL_MSG_TYPE_SET_SCREEN_POWER_MODE;
-        msg.set_screen_power_mode.mode = SC_SCREEN_POWER_MODE_OFF;
+        msg.type = SC_CONTROL_MSG_TYPE_SET_DISPLAY_POWER;
+        msg.set_display_power.on = false;
 
         if (!sc_controller_push_msg(&s->controller, &msg)) {
-            LOGW("Could not request 'set screen power mode'");
+            LOGW("Could not request 'set display power'");
         }
     }
 
@@ -799,12 +909,40 @@ aoa_hid_end:
         timeout_started = true;
     }
 
+    if (options->control
+            && options->gamepad_input_mode != SC_GAMEPAD_INPUT_MODE_DISABLED) {
+        init_sdl_gamepads();
+    }
+
+    if (options->control && options->start_app) {
+        assert(controller);
+
+        char *name = strdup(options->start_app);
+        if (!name) {
+            LOG_OOM();
+            goto end;
+        }
+
+        struct sc_control_msg msg;
+        msg.type = SC_CONTROL_MSG_TYPE_START_APP;
+        msg.start_app.name = name;
+
+        if (!sc_controller_push_msg(controller, &msg)) {
+            LOGW("Could not request start app '%s'", name);
+            free(name);
+        }
+    }
+
     ret = event_loop(s);
+    terminate_event_loop();
     LOGD("quit...");
 
-    // Close the window immediately on closing, because screen_destroy() may
-    // only be called once the video demuxer thread is joined (it may take time)
-    sc_screen_hide_window(&s->screen);
+    if (options->video_playback) {
+        // Close the window immediately on closing, because screen_destroy()
+        // may only be called once the video demuxer thread is joined (it may
+        // take time)
+        sc_screen_hide_window(&s->screen);
+    }
 
 end:
     if (timeout_started) {
@@ -815,11 +953,14 @@ end:
     // end-of-stream
 #ifdef HAVE_USB
     if (aoa_hid_initialized) {
-        if (hid_keyboard_initialized) {
-            sc_hid_keyboard_destroy(&s->keyboard_hid);
+        if (keyboard_aoa_initialized) {
+            sc_keyboard_aoa_destroy(&s->keyboard_aoa);
         }
-        if (hid_mouse_initialized) {
-            sc_hid_mouse_destroy(&s->mouse_hid);
+        if (mouse_aoa_initialized) {
+            sc_mouse_aoa_destroy(&s->mouse_aoa);
+        }
+        if (gamepad_aoa_initialized) {
+            sc_gamepad_aoa_destroy(&s->gamepad_aoa);
         }
         sc_aoa_stop(&s->aoa);
         sc_usb_stop(&s->usb);

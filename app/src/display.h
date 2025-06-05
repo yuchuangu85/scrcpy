@@ -4,7 +4,8 @@
 #include "common.h"
 
 #include <stdbool.h>
-#include <libavformat/avformat.h>
+#include <stdint.h>
+#include <libavutil/frame.h>
 #include <SDL2/SDL.h>
 
 #include "coords.h"
@@ -33,6 +34,8 @@ struct sc_display {
         struct sc_size size;
         AVFrame *frame;
     } pending;
+
+    bool has_frame;
 };
 
 enum sc_display_result {
@@ -42,7 +45,8 @@ enum sc_display_result {
 };
 
 bool
-sc_display_init(struct sc_display *display, SDL_Window *window, bool mipmaps);
+sc_display_init(struct sc_display *display, SDL_Window *window,
+                SDL_Surface *icon_novideo, bool mipmaps);
 
 void
 sc_display_destroy(struct sc_display *display);

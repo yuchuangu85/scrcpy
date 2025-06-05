@@ -1,8 +1,9 @@
 package com.genymobile.scrcpy.wrappers;
 
+import com.genymobile.scrcpy.AndroidVersions;
 import com.genymobile.scrcpy.FakeContext;
-import com.genymobile.scrcpy.Ln;
-import com.genymobile.scrcpy.SettingsException;
+import com.genymobile.scrcpy.util.Ln;
+import com.genymobile.scrcpy.util.SettingsException;
 
 import android.annotation.SuppressLint;
 import android.content.AttributionSource;
@@ -11,7 +12,6 @@ import android.os.Bundle;
 import android.os.IBinder;
 
 import java.io.Closeable;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 public final class ContentProvider implements Closeable {
@@ -42,8 +42,6 @@ public final class ContentProvider implements Closeable {
     private Method callMethod;
     private int callMethodVersion;
 
-    private Object attributionSource;
-
     ContentProvider(ActivityManager manager, Object provider, String name, IBinder token) {
         this.manager = manager;
         this.provider = provider;
@@ -54,7 +52,7 @@ public final class ContentProvider implements Closeable {
     @SuppressLint("PrivateApi")
     private Method getCallMethod() throws NoSuchMethodException {
         if (callMethod == null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (Build.VERSION.SDK_INT >= AndroidVersions.API_31_ANDROID_12) {
                 callMethod = provider.getClass().getMethod("call", AttributionSource.class, String.class, String.class, String.class, Bundle.class);
                 callMethodVersion = 0;
             } else {
@@ -77,13 +75,12 @@ public final class ContentProvider implements Closeable {
         return callMethod;
     }
 
-    private Bundle call(String callMethod, String arg, Bundle extras)
-            throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    private Bundle call(String callMethod, String arg, Bundle extras) throws ReflectiveOperationException {
         try {
             Method method = getCallMethod();
             Object[] args;
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && callMethodVersion == 0) {
+            if (Build.VERSION.SDK_INT >= AndroidVersions.API_31_ANDROID_12 && callMethodVersion == 0) {
                 args = new Object[]{FakeContext.get().getAttributionSource(), "settings", callMethod, arg, extras};
             } else {
                 switch (callMethodVersion) {
@@ -99,7 +96,7 @@ public final class ContentProvider implements Closeable {
                 }
             }
             return (Bundle) method.invoke(provider, args);
-        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+        } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             throw e;
         }

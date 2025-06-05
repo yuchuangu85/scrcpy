@@ -20,6 +20,10 @@ provides display and control of Android devices connected on USB (or over TCP/IP
 Make scrcpy window always on top (above other windows).
 
 .TP
+.BI "\-\-angle " degrees
+Rotate the video content by a custom angle, in degrees (clockwise).
+
+.TP
 .BI "\-\-audio\-bit\-rate " value
 Encode the audio at the given bit rate, expressed in bits/s. Unit suffixes are supported: '\fBK\fR' (x1000) and '\fBM\fR' (x1000000).
 
@@ -29,7 +33,7 @@ Default is 128K (128000).
 .BI "\-\-audio\-buffer " ms
 Configure the audio buffering delay (in milliseconds).
 
-Lower values decrease the latency, but increase the likelyhood of buffer underrun (causing audio glitches).
+Lower values decrease the latency, but increase the likelihood of buffer underrun (causing audio glitches).
 
 Default is 50.
 
@@ -50,6 +54,12 @@ The list of possible codec options is available in the Android documentation:
 <https://d.android.com/reference/android/media/MediaFormat>
 
 .TP
+.B \-\-audio\-dup
+Duplicate audio (capture and keep playing on the device).
+
+This feature is only available with --audio-source=playback.
+
+.TP
 .BI "\-\-audio\-encoder " name
 Use a specific MediaCodec audio encoder (depending on the codec provided by \fB\-\-audio\-codec\fR).
 
@@ -57,7 +67,19 @@ The available encoders can be listed by \fB\-\-list\-encoders\fR.
 
 .TP
 .BI "\-\-audio\-source " source
-Select the audio source (output or mic).
+Select the audio source. Possible values are:
+
+ - "output": forwards the whole audio output, and disables playback on the device.
+ - "playback": captures the audio playback (Android apps can opt-out, so the whole output is not necessarily captured).
+ - "mic": captures the microphone.
+ - "mic-unprocessed": captures the microphone unprocessed (raw) sound.
+ - "mic-camcorder": captures the microphone tuned for video recording, with the same orientation as the camera if available.
+ - "mic-voice-recognition": captures the microphone tuned for voice recognition.
+ - "mic-voice-communication": captures the microphone tuned for voice communications (it will for instance take advantage of echo cancellation or automatic gain control if available).
+ - "voice-call": captures voice call.
+ - "voice-call-uplink": captures voice call uplink only.
+ - "voice-call-downlink": captures voice call downlink only.
+ - "voice-performance": captures audio meant to be processed for live performance (karaoke), includes both the microphone and the device playback.
 
 Default is output.
 
@@ -82,18 +104,6 @@ Select the camera size by its aspect ratio (+/- 10%).
 Possible values are "sensor" (use the camera sensor aspect ratio), "\fInum\fR:\fIden\fR" (e.g. "4:3") and "\fIvalue\fR" (e.g. "1.6").
 
 .TP
-.B \-\-camera\-high\-speed
-Enable high-speed camera capture mode.
-
-This mode is restricted to specific resolutions and frame rates, listed by \fB\-\-list\-camera\-sizes\fR.
-
-.TP
-.BI "\-\-camera\-id " id
-Specify the device camera id to mirror.
-
-The available camera ids can be listed by \fB\-\-list\-cameras\fR.
-
-.TP
 .BI "\-\-camera\-facing " facing
 Select the device camera by its facing direction.
 
@@ -106,16 +116,38 @@ Specify the camera capture frame rate.
 If not specified, Android's default frame rate (30 fps) is used.
 
 .TP
+.B \-\-camera\-high\-speed
+Enable high-speed camera capture mode.
+
+This mode is restricted to specific resolutions and frame rates, listed by \fB\-\-list\-camera\-sizes\fR.
+
+.TP
+.BI "\-\-camera\-id " id
+Specify the device camera id to mirror.
+
+The available camera ids can be listed by \fB\-\-list\-cameras\fR.
+
+.TP
 .BI "\-\-camera\-size " width\fRx\fIheight
 Specify an explicit camera capture size.
+
+.TP
+.BI "\-\-capture\-orientation " value
+Possible values are 0, 90, 180, 270, flip0, flip90, flip180 and flip270, possibly prefixed by '@'.
+
+The number represents the clockwise rotation in degrees; the "flip" keyword applies a horizontal flip before the rotation.
+
+If a leading '@' is passed (@90) for display capture, then the rotation is locked, and is relative to the natural device orientation.
+
+If '@' is passed alone, then the rotation is locked to the initial device orientation.
+
+Default is 0.
 
 .TP
 .BI "\-\-crop " width\fR:\fIheight\fR:\fIx\fR:\fIy
 Crop the device screen on the server.
 
-The values are expressed in the device natural orientation (typically, portrait for a phone, landscape for a tablet). Any
-.B \-\-max\-size
-value is computed on the cropped size.
+The values are expressed in the device natural orientation (typically, portrait for a phone, landscape for a tablet).
 
 .TP
 .B \-d, \-\-select\-usb
@@ -124,14 +156,8 @@ Use USB device (if there is exactly one, like adb -d).
 Also see \fB\-e\fR (\fB\-\-select\-tcpip\fR).
 
 .TP
-.BI "\-\-disable-screensaver"
+.BI "\-\-disable\-screensaver"
 Disable screensaver while scrcpy is running.
-
-.TP
-.BI "\-\-display\-buffer " ms
-Add a buffering delay (in milliseconds) before displaying. This increases latency to compensate for jitter.
-
-Default is 0 (no buffering).
 
 .TP
 .BI "\-\-display\-id " id
@@ -140,6 +166,19 @@ Specify the device display id to mirror.
 The available display ids can be listed by \fB\-\-list\-displays\fR.
 
 Default is 0.
+
+.TP
+.BI "\-\-display\-ime\-policy " value
+Set the policy for selecting where the IME should be displayed.
+
+Possible values are "local", "fallback" and "hide":
+
+ - "local" means that the IME should appear on the local display.
+ - "fallback" means that the IME should appear on a fallback display (the default display).
+ - "hide" means that the IME should be hidden.
+
+By default, the IME policy is left unchanged.
+
 
 .TP
 .BI "\-\-display\-orientation " value
@@ -164,38 +203,60 @@ Start in fullscreen.
 Do not attempt to use "adb reverse" to connect to the device.
 
 .TP
-.B \-\-forward\-all\-clicks
-By default, right-click triggers BACK (or POWER on) and middle-click triggers HOME. This option disables these shortcuts and forward the clicks to the device instead.
+.B \-G
+Same as \fB\-\-gamepad=uhid\fR, or \fB\-\-keyboard=aoa\fR if \fB\-\-otg\fR is set.
 
+.TP
+.BI "\-\-gamepad " mode
+Select how to send gamepad inputs to the device.
+
+Possible values are "disabled", "uhid" and "aoa":
+
+ - "disabled" does not send gamepad inputs to the device.
+ - "uhid" simulates physical HID gamepads using the Linux HID kernel module on the device.
+ - "aoa" simulates physical HID gamepads using the AOAv2 protocol. It may only work over USB.
+
+Also see \fB\-\-keyboard\f and R\fB\-\-mouse\fR.
 .TP
 .B \-h, \-\-help
 Print this help.
+
+.TP
+.B \-K
+Same as \fB\-\-keyboard=uhid\fR, or \fB\-\-keyboard=aoa\fR if \fB\-\-otg\fR is set.
+
+.TP
+.BI "\-\-keyboard " mode
+Select how to send keyboard inputs to the device.
+
+Possible values are "disabled", "sdk", "uhid" and "aoa":
+
+ - "disabled" does not send keyboard inputs to the device.
+ - "sdk" uses the Android system API to deliver keyboard events to applications.
+ - "uhid" simulates a physical HID keyboard using the Linux HID kernel module on the device.
+ - "aoa" simulates a physical HID keyboard using the AOAv2 protocol. It may only work over USB.
+
+For "uhid" and "aoa", the keyboard layout must be configured (once and for all) on the device, via Settings -> System -> Languages and input -> Physical keyboard. This settings page can be started directly using the shortcut MOD+k (except in OTG mode), or by executing:
+
+    adb shell am start -a android.settings.HARD_KEYBOARD_SETTINGS
+
+This option is only available when the HID keyboard is enabled (or a physical keyboard is connected).
+
+Also see \fB\-\-mouse\fR and \fB\-\-gamepad\fR.
 
 .TP
 .B \-\-kill\-adb\-on\-close
 Kill adb when scrcpy terminates.
 
 .TP
-.B \-K, \-\-hid\-keyboard
-Simulate a physical keyboard by using HID over AOAv2.
-
-This provides a better experience for IME users, and allows to generate non-ASCII characters, contrary to the default injection method.
-
-It may only work over USB.
-
-The keyboard layout must be configured (once and for all) on the device, via Settings -> System -> Languages and input -> Physical keyboard. This settings page can be started directly:
-
-    adb shell am start -a android.settings.HARD_KEYBOARD_SETTINGS
-
-However, the option is only available when the HID keyboard is enabled (or a physical keyboard is connected).
-
-Also see \fB\-\-hid\-mouse\fR.
-
-.TP
 .B \-\-legacy\-paste
 Inject computer clipboard text as a sequence of key events on Ctrl+v (like MOD+Shift+v).
 
 This is a workaround for some devices not behaving as expected when setting the device clipboard programmatically.
+
+.TP
+.B \-\-list\-apps
+List Android apps installed on the device.
 
 .TP
 .B \-\-list\-camera\-sizes
@@ -214,36 +275,57 @@ List video and audio encoders available on the device.
 List displays available on the device.
 
 .TP
-\fB\-\-lock\-video\-orientation\fR[=\fIvalue\fR]
-Lock capture video orientation to \fIvalue\fR.
-
-Possible values are "unlocked", "initial" (locked to the initial orientation), 0, 90, 180, and 270. The values represent the clockwise rotation from the natural device orientation, in degrees.
-
-Default is "unlocked".
-
-Passing the option without argument is equivalent to passing "initial".
-
-.TP
 .BI "\-m, \-\-max\-size " value
 Limit both the width and height of the video to \fIvalue\fR. The other dimension is computed so that the device aspect\-ratio is preserved.
 
 Default is 0 (unlimited).
 
 .TP
-.B \-M, \-\-hid\-mouse
-Simulate a physical mouse by using HID over AOAv2.
-
-In this mode, the computer mouse is captured to control the device directly (relative mouse mode).
-
-LAlt, LSuper or RSuper toggle the capture mode, to give control of the mouse back to the computer.
-
-It may only work over USB.
-
-Also see \fB\-\-hid\-keyboard\fR.
+.B \-M
+Same as \fB\-\-mouse=uhid\fR, or \fB\-\-mouse=aoa\fR if \fB\-\-otg\fR is set.
 
 .TP
 .BI "\-\-max\-fps " value
 Limit the framerate of screen capture (officially supported since Android 10, but may work on earlier versions).
+
+.TP
+.BI "\-\-mouse " mode
+Select how to send mouse inputs to the device.
+
+Possible values are "disabled", "sdk", "uhid" and "aoa":
+
+ - "disabled" does not send mouse inputs to the device.
+ - "sdk" uses the Android system API to deliver mouse events to applications.
+ - "uhid" simulates a physical HID mouse using the Linux HID kernel module on the device.
+ - "aoa" simulates a physical mouse using the AOAv2 protocol. It may only work over USB.
+
+In "uhid" and "aoa" modes, the computer mouse is captured to control the device directly (relative mouse mode).
+
+LAlt, LSuper or RSuper toggle the capture mode, to give control of the mouse back to the computer.
+
+Also see \fB\-\-keyboard\fR and \fB\-\-gamepad\fR.
+
+.TP
+.BI "\-\-mouse\-bind " xxxx[:xxxx]
+Configure bindings of secondary clicks.
+
+The argument must be one or two sequences (separated by ':') of exactly 4 characters, one for each secondary click (in order: right click, middle click, 4th click, 5th click).
+
+The first sequence defines the primary bindings, used when a mouse button is pressed alone. The second sequence defines the secondary bindings, used when a mouse button is pressed while the Shift key is held.
+
+If the second sequence of bindings is omitted, then it is the same as the first one.
+
+Each character must be one of the following:
+
+ - '+': forward the click to the device
+ - '-': ignore the click
+ - 'b': trigger shortcut BACK (or turn screen on if off)
+ - 'h': trigger shortcut HOME
+ - 's': trigger shortcut APP_SWITCH
+ - 'n': trigger shortcut "expand notification panel"
+
+Default is 'bhsn:++++' for SDK mouse, and '++++:bhsn' for AOA and UHID.
+
 
 .TP
 .B \-n, \-\-no\-control
@@ -252,6 +334,17 @@ Disable device control (mirror the device in read\-only).
 .TP
 .B \-N, \-\-no\-playback
 Disable video and audio playback on the computer (equivalent to \fB\-\-no\-video\-playback \-\-no\-audio\-playback\fR).
+
+.TP
+\fB\-\-new\-display\fR[=[\fIwidth\fRx\fIheight\fR][/\fIdpi\fR]]
+Create a new display with the specified resolution and density. If not provided, they default to the main display dimensions and DPI.
+
+Examples:
+
+    \-\-new\-display=1920x1080
+    \-\-new\-display=1920x1080/420
+    \-\-new\-display         # main display size and density
+    \-\-new\-display=/240    # main display size and 240 dpi
 
 .TP
 .B \-\-no\-audio
@@ -288,8 +381,22 @@ Do not forward repeated key events when a key is held down.
 If the renderer is OpenGL 3.0+ or OpenGL ES 2.0+, then mipmaps are automatically generated to improve downscaling quality. This option disables the generation of mipmaps.
 
 .TP
+.B \-\-no\-mouse\-hover
+Do not forward mouse hover (mouse motion without any clicks) events.
+
+.TP
 .B \-\-no\-power\-on
 Do not power on the device on start.
+
+.TP
+.B \-\-no\-vd\-destroy\-content
+Disable virtual display "destroy content on removal" flag.
+
+With this option, when the virtual display is closed, the running apps are moved to the main display rather than being destroyed.
+
+.TP
+.B \-\-no\-vd\-system\-decorations
+Disable virtual display system decorations flag.
 
 .TP
 .B \-\-no\-video
@@ -298,6 +405,10 @@ Disable video forwarding.
 .TP
 .B \-\-no\-video\-playback
 Disable video playback on the computer.
+
+.TP
+.B \-\-no\-window
+Disable scrcpy window. Implies --no-video-playback.
 
 .TP
 .BI "\-\-orientation " value
@@ -315,7 +426,7 @@ If any of \fB\-\-hid\-keyboard\fR or \fB\-\-hid\-mouse\fR is set, only enable ke
 
 It may only work over USB.
 
-See \fB\-\-hid\-keyboard\fR and \fB\-\-hid\-mouse\fR.
+See \fB\-\-keyboard\fR, \fB\-\-mouse\fR and \fB\-\-gamepad\fR.
 
 .TP
 .BI "\-p, \-\-port " port\fR[:\fIport\fR]
@@ -325,7 +436,7 @@ Default is 27183:27199.
 
 .TP
 \fB\-\-pause\-on\-exit\fR[=\fImode\fR]
-Configure pause on exit. Possible values are "true" (always pause on exit), "false" (never pause on exit) and "if-error" (pause only if an error occured).
+Configure pause on exit. Possible values are "true" (always pause on exit), "false" (never pause on exit) and "if-error" (pause only if an error occurred).
 
 This is useful to prevent the terminal window from automatically closing, so that error messages can be read.
 
@@ -403,11 +514,27 @@ Turn the device screen off immediately.
 .BI "\-\-shortcut\-mod " key\fR[+...]][,...]
 Specify the modifiers to use for scrcpy shortcuts. Possible keys are "lctrl", "rctrl", "lalt", "ralt", "lsuper" and "rsuper".
 
-A shortcut can consist in several keys, separated by '+'. Several shortcuts can be specified, separated by ','.
+Several shortcut modifiers can be specified, separated by ','.
 
-For example, to use either LCtrl+LAlt or LSuper for scrcpy shortcuts, pass "lctrl+lalt,lsuper".
+For example, to use either LCtrl or LSuper for scrcpy shortcuts, pass "lctrl,lsuper".
 
 Default is "lalt,lsuper" (left-Alt or left-Super).
+
+.TP
+.BI "\-\-start\-app " name
+Start an Android app, by its exact package name.
+
+Add a '?' prefix to select an app whose name starts with the given name, case-insensitive (retrieving app names on the device may take some time):
+
+    scrcpy --start-app=?firefox
+
+Add a '+' prefix to force-stop before starting the app:
+
+    scrcpy --new-display --start-app=+org.mozilla.firefox
+
+Both prefixes can be used, in that order:
+
+    scrcpy --start-app=+?firefox
 
 .TP
 .B \-t, \-\-show\-touches
@@ -416,12 +543,14 @@ Enable "show touches" on start, restore the initial value on exit.
 It only shows physical touches (not clicks from scrcpy).
 
 .TP
-.BI "\-\-tcpip\fR[=\fIip\fR[:\fIport\fR]]
-Configure and reconnect the device over TCP/IP.
+.BI "\-\-tcpip\fR[=[+]\fIip\fR[:\fIport\fR]]
+Configure and connect the device over TCP/IP.
 
 If a destination address is provided, then scrcpy connects to this address before starting. The device must listen on the given TCP port (default is 5555).
 
 If no destination address is provided, then scrcpy attempts to find the IP address and adb port of the current device (typically connected over USB), enables TCP/IP mode if necessary, then connects to this address before starting.
+
+Prefix the address with a '+' to force a reconnection.
 
 .TP
 .BI "\-\-time\-limit " seconds
@@ -453,13 +582,19 @@ Default is "info" for release builds, "debug" for debug builds.
 .BI "\-\-v4l2-sink " /dev/videoN
 Output to v4l2loopback device.
 
-It requires to lock the video orientation (see \fB\-\-lock\-video\-orientation\fR).
-
 .TP
 .BI "\-\-v4l2-buffer " ms
 Add a buffering delay (in milliseconds) before pushing frames. This increases latency to compensate for jitter.
 
-This option is similar to \fB\-\-display\-buffer\fR, but specific to V4L2 sink.
+This option is similar to \fB\-\-video\-buffer\fR, but specific to V4L2 sink.
+
+Default is 0 (no buffering).
+
+.TP
+.BI "\-\-video\-buffer " ms
+Add a buffering delay (in milliseconds) before displaying video frames.
+
+This increases latency to compensate for jitter.
 
 Default is 0 (no buffering).
 
@@ -561,6 +696,18 @@ Flip display horizontally
 Flip display vertically
 
 .TP
+.B MOD+z
+Pause or re-pause display
+
+.TP
+.B MOD+Shift+z
+Unpause display
+
+.TP
+.B MOD+Shift+r
+Reset video capture/encoding
+
+.TP
 .B MOD+g
 Resize window to 1:1 (pixel\-perfect)
 
@@ -637,12 +784,24 @@ Copy computer clipboard to device, then paste (inject PASTE keycode, Android >= 
 Inject computer clipboard text as a sequence of key events
 
 .TP
+.B MOD+k
+Open keyboard settings on the device (for HID keyboard only)
+
+.TP
 .B MOD+i
 Enable/disable FPS counter (print frames/second in logs)
 
 .TP
 .B Ctrl+click-and-move
-Pinch-to-zoom from the center of the screen
+Pinch-to-zoom and rotate from the center of the screen
+
+.TP
+.B Shift+click-and-move
+Tilt vertically (slide with 2 fingers)
+
+.TP
+.B Ctrl+Shift+click-and-move
+Tilt horizontally (slide with 2 fingers)
 
 .TP
 .B Drag & drop APK file
@@ -689,7 +848,7 @@ Report bugs to <https://github.com/Genymobile/scrcpy/issues>.
 .SH COPYRIGHT
 Copyright \(co 2018 Genymobile <https://www.genymobile.com>
 
-Copyright \(co 2018\-2023 Romain Vimont <rom@rom1v.com>
+Copyright \(co 2018\-2025 Romain Vimont <rom@rom1v.com>
 
 Licensed under the Apache License, Version 2.0.
 

@@ -28,14 +28,21 @@ To disable only the audio playback, see [no playback](video.md#no-playback).
 
 ## Audio only
 
-To play audio only, disable the video:
+To play audio only, disable video and control:
 
 ```bash
-scrcpy --no-video
+scrcpy --no-video --no-control
+```
+
+To play audio without a window:
+
+```bash
+# --no-video and --no-control are implied by --no-window
+scrcpy --no-window
 # interrupt with Ctrl+C
 ```
 
-Without video, the audio latency is typically not criticial, so it might be
+Without video, the audio latency is typically not critical, so it might be
 interesting to add [buffering](#buffering) to minimize glitches:
 
 ```
@@ -58,6 +65,44 @@ the computer:
 ```
 scrcpy --audio-source=mic --no-video --no-playback --record=file.opus
 ```
+
+Many sources are available:
+
+ - `output` (default): forwards the whole audio output, and disables playback on the device (mapped to [`REMOTE_SUBMIX`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#REMOTE_SUBMIX)).
+ - `playback`: captures the audio playback (Android apps can opt-out, so the whole output is not necessarily captured).
+ - `mic`: captures the microphone (mapped to [`MIC`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#MIC)).
+ - `mic-unprocessed`: captures the microphone unprocessed (raw) sound (mapped to [`UNPROCESSED`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#UNPROCESSED)).
+ - `mic-camcorder`: captures the microphone tuned for video recording, with the same orientation as the camera if available (mapped to [`CAMCORDER`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#CAMCORDER)).
+ - `mic-voice-recognition`: captures the microphone tuned for voice recognition (mapped to [`VOICE_RECOGNITION`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#VOICE_RECOGNITION)).
+ - `mic-voice-communication`: captures the microphone tuned for voice communications (it will for instance take advantage of echo cancellation or automatic gain control if available) (mapped to [`VOICE_COMMUNICATION`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#VOICE_COMMUNICATION)).
+ - `voice-call`: captures voice call (mapped to [`VOICE_CALL`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#VOICE_CALL)).
+ - `voice-call-uplink`: captures voice call uplink only (mapped to [`VOICE_UPLINK`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#VOICE_UPLINK)).
+ - `voice-call-downlink`: captures voice call downlink only (mapped to [`VOICE_DOWNLINK`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#VOICE_DOWNLINK)).
+ - `voice-performance`: captures audio meant to be processed for live performance (karaoke), includes both the microphone and the device playback (mapped to [`VOICE_PERFORMANCE`](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource#VOICE_PERFORMANCE)).
+
+### Duplication
+
+An alternative device audio capture method is also available (only for Android
+13 and above):
+
+```
+scrcpy --audio-source=playback
+```
+
+This audio source supports keeping the audio playing on the device while
+mirroring, with `--audio-dup`:
+
+```bash
+scrcpy --audio-source=playback --audio-dup
+# or simply:
+scrcpy --audio-dup  # --audio-source=playback is implied
+```
+
+However, it requires Android 13, and Android apps can opt-out (so they are not
+captured).
+
+
+See [#4380](https://github.com/Genymobile/scrcpy/issues/4380).
 
 
 ## Codec
@@ -139,7 +184,7 @@ latency (for both [video](video.md#buffering) and audio) might be preferable to
 avoid glitches and smooth the playback:
 
 ```
-scrcpy --display-buffer=200 --audio-buffer=200
+scrcpy --video-buffer=200 --audio-buffer=200
 ```
 
 It is also possible to configure another audio buffer (the audio output buffer),

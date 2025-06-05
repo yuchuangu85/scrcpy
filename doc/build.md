@@ -77,7 +77,7 @@ pip3 install meson
 sudo dnf install https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
 
 # client build dependencies
-sudo dnf install SDL2-devel ffms2-devel libusb1-devel meson gcc make
+sudo dnf install SDL2-devel ffms2-devel libusb1-devel libavdevice-free-devel meson gcc make
 
 # server build dependencies
 sudo dnf install java-devel
@@ -94,7 +94,7 @@ This is the preferred method (and the way the release is built).
 From _Debian_, install _mingw_:
 
 ```bash
-sudo apt install mingw-w64 mingw-w64-tools
+sudo apt install mingw-w64 mingw-w64-tools libz-mingw-w64-dev
 ```
 
 You also need the JDK to build the server:
@@ -233,10 +233,10 @@ install` must be run as root)._
 
 #### Option 2: Use prebuilt server
 
- - [`scrcpy-server-v2.3.1`][direct-scrcpy-server]  
-   <sub>SHA-256: `f6814822fc308a7a532f253485c9038183c6296a6c5df470a9e383b4f8e7605b`</sub>
+ - [`scrcpy-server-v3.2`][direct-scrcpy-server]  
+   <sub>SHA-256: `b920e0ea01936bf2482f4ba2fa985c22c13c621999e3d33b45baa5acfc1ea3d0`</sub>
 
-[direct-scrcpy-server]: https://github.com/Genymobile/scrcpy/releases/download/v2.3.1/scrcpy-server-v2.3.1
+[direct-scrcpy-server]: https://github.com/Genymobile/scrcpy/releases/download/v3.2/scrcpy-server-v3.2
 
 Download the prebuilt server somewhere, and specify its path during the Meson
 configuration:

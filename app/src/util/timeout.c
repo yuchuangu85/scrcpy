@@ -1,8 +1,9 @@
 #include "timeout.h"
 
 #include <assert.h>
+#include <stddef.h>
 
-#include "log.h"
+#include "util/log.h"
 
 bool
 sc_timeout_init(struct sc_timeout *timeout) {
@@ -62,6 +63,7 @@ void
 sc_timeout_stop(struct sc_timeout *timeout) {
     sc_mutex_lock(&timeout->mutex);
     timeout->stopped = true;
+    sc_cond_signal(&timeout->cond);
     sc_mutex_unlock(&timeout->mutex);
 }
 

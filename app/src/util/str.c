@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -11,8 +12,8 @@
 # include <tchar.h>
 #endif
 
-#include "log.h"
-#include "strbuf.h"
+#include "util/log.h"
+#include "util/strbuf.h"
 
 size_t
 sc_strncpy(char *dest, const char *src, size_t n) {
@@ -61,6 +62,26 @@ sc_str_quote(const char *src) {
     quoted[len + 1] = '"';
     quoted[len + 2] = '\0';
     return quoted;
+}
+
+char *
+sc_str_concat(const char *start, const char *end) {
+    assert(start);
+    assert(end);
+
+    size_t start_len = strlen(start);
+    size_t end_len = strlen(end);
+
+    char *result = malloc(start_len + end_len + 1);
+    if (!result) {
+        LOG_OOM();
+        return NULL;
+    }
+
+    memcpy(result, start, start_len);
+    memcpy(result + start_len, end, end_len + 1);
+
+    return result;
 }
 
 bool
@@ -332,4 +353,23 @@ sc_str_remove_trailing_cr(char *s, size_t len) {
         s[--len] = '\0';
     }
     return len;
+}
+
+char *
+sc_str_to_hex_string(const uint8_t *data, size_t size) {
+    size_t buffer_size = size * 3 + 1;
+    char *buffer = malloc(buffer_size);
+    if (!buffer) {
+        LOG_OOM();
+        return NULL;
+    }
+
+    for (size_t i = 0; i < size; ++i) {
+        snprintf(buffer + i * 3, 4, "%02X ", data[i]);
+    }
+
+    // Remove the final space
+    buffer[size * 3] = '\0';
+
+    return buffer;
 }

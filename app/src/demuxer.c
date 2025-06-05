@@ -1,14 +1,11 @@
 #include "demuxer.h"
 
 #include <assert.h>
+#include <inttypes.h>
+#include <libavcodec/avcodec.h>
 #include <libavutil/channel_layout.h>
-#include <libavutil/time.h>
-#include <unistd.h>
 
-#include "decoder.h"
-#include "events.h"
 #include "packet_merger.h"
-#include "recorder.h"
 #include "util/binary.h"
 #include "util/log.h"
 
@@ -278,7 +275,6 @@ run_demuxer(void *data) {
 finally_close_sinks:
     sc_packet_source_sinks_close(&demuxer->packet_source);
 finally_free_context:
-    // This also calls avcodec_close() internally
     avcodec_free_context(&codec_ctx);
 end:
     demuxer->cbs->on_ended(demuxer, status, demuxer->cbs_userdata);

@@ -5,7 +5,6 @@
 
 #include <assert.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 #include "util/tick.h"
@@ -59,6 +58,15 @@ enum sc_audio_source {
     SC_AUDIO_SOURCE_AUTO, // OUTPUT for video DISPLAY, MIC for video CAMERA
     SC_AUDIO_SOURCE_OUTPUT,
     SC_AUDIO_SOURCE_MIC,
+    SC_AUDIO_SOURCE_PLAYBACK,
+    SC_AUDIO_SOURCE_MIC_UNPROCESSED,
+    SC_AUDIO_SOURCE_MIC_CAMCORDER,
+    SC_AUDIO_SOURCE_MIC_VOICE_RECOGNITION,
+    SC_AUDIO_SOURCE_MIC_VOICE_COMMUNICATION,
+    SC_AUDIO_SOURCE_VOICE_CALL,
+    SC_AUDIO_SOURCE_VOICE_CALL_UPLINK,
+    SC_AUDIO_SOURCE_VOICE_CALL_DOWNLINK,
+    SC_AUDIO_SOURCE_VOICE_PERFORMANCE,
 };
 
 enum sc_camera_facing {
@@ -81,6 +89,19 @@ enum sc_orientation {         // v v v
     SC_ORIENTATION_FLIP_90,   // 1 0 1
     SC_ORIENTATION_FLIP_180,  // 1 1 0
     SC_ORIENTATION_FLIP_270,  // 1 1 1
+};
+
+enum sc_orientation_lock {
+    SC_ORIENTATION_UNLOCKED,
+    SC_ORIENTATION_LOCKED_VALUE,   // lock to specified orientation
+    SC_ORIENTATION_LOCKED_INITIAL, // lock to initial device orientation
+};
+
+enum sc_display_ime_policy {
+    SC_DISPLAY_IME_POLICY_UNDEFINED,
+    SC_DISPLAY_IME_POLICY_LOCAL,
+    SC_DISPLAY_IME_POLICY_FALLBACK,
+    SC_DISPLAY_IME_POLICY_HIDE,
 };
 
 static inline bool
@@ -129,24 +150,51 @@ sc_orientation_get_name(enum sc_orientation orientation) {
     }
 }
 
-enum sc_lock_video_orientation {
-    SC_LOCK_VIDEO_ORIENTATION_UNLOCKED = -1,
-    // lock the current orientation when scrcpy starts
-    SC_LOCK_VIDEO_ORIENTATION_INITIAL = -2,
-    SC_LOCK_VIDEO_ORIENTATION_0 = 0,
-    SC_LOCK_VIDEO_ORIENTATION_90 = 3,
-    SC_LOCK_VIDEO_ORIENTATION_180 = 2,
-    SC_LOCK_VIDEO_ORIENTATION_270 = 1,
-};
-
 enum sc_keyboard_input_mode {
-    SC_KEYBOARD_INPUT_MODE_INJECT,
-    SC_KEYBOARD_INPUT_MODE_HID,
+    SC_KEYBOARD_INPUT_MODE_AUTO,
+    SC_KEYBOARD_INPUT_MODE_UHID_OR_AOA, // normal vs otg mode
+    SC_KEYBOARD_INPUT_MODE_DISABLED,
+    SC_KEYBOARD_INPUT_MODE_SDK,
+    SC_KEYBOARD_INPUT_MODE_UHID,
+    SC_KEYBOARD_INPUT_MODE_AOA,
 };
 
 enum sc_mouse_input_mode {
-    SC_MOUSE_INPUT_MODE_INJECT,
-    SC_MOUSE_INPUT_MODE_HID,
+    SC_MOUSE_INPUT_MODE_AUTO,
+    SC_MOUSE_INPUT_MODE_UHID_OR_AOA, // normal vs otg mode
+    SC_MOUSE_INPUT_MODE_DISABLED,
+    SC_MOUSE_INPUT_MODE_SDK,
+    SC_MOUSE_INPUT_MODE_UHID,
+    SC_MOUSE_INPUT_MODE_AOA,
+};
+
+enum sc_gamepad_input_mode {
+    SC_GAMEPAD_INPUT_MODE_DISABLED,
+    SC_GAMEPAD_INPUT_MODE_UHID_OR_AOA, // normal vs otg mode
+    SC_GAMEPAD_INPUT_MODE_UHID,
+    SC_GAMEPAD_INPUT_MODE_AOA,
+};
+
+enum sc_mouse_binding {
+    SC_MOUSE_BINDING_AUTO,
+    SC_MOUSE_BINDING_DISABLED,
+    SC_MOUSE_BINDING_CLICK,
+    SC_MOUSE_BINDING_BACK,
+    SC_MOUSE_BINDING_HOME,
+    SC_MOUSE_BINDING_APP_SWITCH,
+    SC_MOUSE_BINDING_EXPAND_NOTIFICATION_PANEL,
+};
+
+struct sc_mouse_binding_set {
+    enum sc_mouse_binding right_click;
+    enum sc_mouse_binding middle_click;
+    enum sc_mouse_binding click4;
+    enum sc_mouse_binding click5;
+};
+
+struct sc_mouse_bindings {
+    struct sc_mouse_binding_set pri;
+    struct sc_mouse_binding_set sec; // When Shift is pressed
 };
 
 enum sc_key_inject_mode {
@@ -163,8 +211,6 @@ enum sc_key_inject_mode {
     SC_KEY_INJECT_MODE_RAW,
 };
 
-#define SC_MAX_SHORTCUT_MODS 8
-
 enum sc_shortcut_mod {
     SC_SHORTCUT_MOD_LCTRL = 1 << 0,
     SC_SHORTCUT_MOD_RCTRL = 1 << 1,
@@ -172,11 +218,6 @@ enum sc_shortcut_mod {
     SC_SHORTCUT_MOD_RALT = 1 << 3,
     SC_SHORTCUT_MOD_LSUPER = 1 << 4,
     SC_SHORTCUT_MOD_RSUPER = 1 << 5,
-};
-
-struct sc_shortcut_mods {
-    unsigned data[SC_MAX_SHORTCUT_MODS];
-    unsigned count;
 };
 
 struct sc_port_range {
@@ -209,27 +250,33 @@ struct scrcpy_options {
     enum sc_record_format record_format;
     enum sc_keyboard_input_mode keyboard_input_mode;
     enum sc_mouse_input_mode mouse_input_mode;
+    enum sc_gamepad_input_mode gamepad_input_mode;
+    struct sc_mouse_bindings mouse_bindings;
     enum sc_camera_facing camera_facing;
     struct sc_port_range port_range;
     uint32_t tunnel_host;
     uint16_t tunnel_port;
-    struct sc_shortcut_mods shortcut_mods;
+    uint8_t shortcut_mods; // OR of enum sc_shortcut_mod values
     uint16_t max_size;
     uint32_t video_bit_rate;
     uint32_t audio_bit_rate;
-    uint16_t max_fps;
-    enum sc_lock_video_orientation lock_video_orientation;
+    const char *max_fps; // float to be parsed by the server
+    const char *angle; // float to be parsed by the server
+    enum sc_orientation capture_orientation;
+    enum sc_orientation_lock capture_orientation_lock;
     enum sc_orientation display_orientation;
     enum sc_orientation record_orientation;
+    enum sc_display_ime_policy display_ime_policy;
     int16_t window_x; // SC_WINDOW_POSITION_UNDEFINED for "auto"
     int16_t window_y; // SC_WINDOW_POSITION_UNDEFINED for "auto"
     uint16_t window_width;
     uint16_t window_height;
     uint32_t display_id;
-    sc_tick display_buffer;
+    sc_tick video_buffer;
     sc_tick audio_buffer;
     sc_tick audio_output_buffer;
     sc_tick time_limit;
+    sc_tick screen_off_timeout;
 #ifdef HAVE_V4L2
     const char *v4l2_device;
     sc_tick v4l2_buffer;
@@ -251,7 +298,6 @@ struct scrcpy_options {
     bool force_adb_forward;
     bool disable_screensaver;
     bool forward_key_repeat;
-    bool forward_all_clicks;
     bool legacy_paste;
     bool power_off_on_close;
     bool clipboard_autosync;
@@ -272,7 +318,15 @@ struct scrcpy_options {
 #define SC_OPTION_LIST_DISPLAYS 0x2
 #define SC_OPTION_LIST_CAMERAS 0x4
 #define SC_OPTION_LIST_CAMERA_SIZES 0x8
+#define SC_OPTION_LIST_APPS 0x10
     uint8_t list;
+    bool window;
+    bool mouse_hover;
+    bool audio_dup;
+    const char *new_display; // [<width>x<height>][/<dpi>] parsed by the server
+    const char *start_app;
+    bool vd_destroy_content;
+    bool vd_system_decorations;
 };
 
 extern const struct scrcpy_options scrcpy_options_default;

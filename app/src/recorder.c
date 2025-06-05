@@ -1,6 +1,9 @@
 #include "recorder.h"
 
 #include <assert.h>
+#include <inttypes.h>
+#include <stdlib.h>
+#include <string.h>
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/time.h>
@@ -143,8 +146,14 @@ sc_recorder_open_output_file(struct sc_recorder *recorder) {
         return false;
     }
 
-    int ret = avio_open(&recorder->ctx->pb, recorder->filename,
-                        AVIO_FLAG_WRITE);
+    char *file_url = sc_str_concat("file:", recorder->filename);
+    if (!file_url) {
+        avformat_free_context(recorder->ctx);
+        return false;
+    }
+
+    int ret = avio_open(&recorder->ctx->pb, file_url, AVIO_FLAG_WRITE);
+    free(file_url);
     if (ret < 0) {
         LOGE("Failed to open output file: %s", recorder->filename);
         avformat_free_context(recorder->ctx);

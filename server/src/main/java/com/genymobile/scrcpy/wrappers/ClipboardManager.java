@@ -1,14 +1,14 @@
 package com.genymobile.scrcpy.wrappers;
 
+import com.genymobile.scrcpy.AndroidVersions;
 import com.genymobile.scrcpy.FakeContext;
-import com.genymobile.scrcpy.Ln;
+import com.genymobile.scrcpy.util.Ln;
 
 import android.content.ClipData;
 import android.content.IOnPrimaryClipChangedListener;
 import android.os.Build;
 import android.os.IInterface;
 
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 public final class ClipboardManager {
@@ -20,63 +20,125 @@ public final class ClipboardManager {
     private int setMethodVersion;
     private int addListenerMethodVersion;
 
-    public ClipboardManager(IInterface manager) {
+    static ClipboardManager create() {
+        IInterface clipboard = ServiceManager.getService("clipboard", "android.content.IClipboard");
+        if (clipboard == null) {
+            // Some devices have no clipboard manager
+            // <https://github.com/Genymobile/scrcpy/issues/1440>
+            // <https://github.com/Genymobile/scrcpy/issues/1556>
+            return null;
+        }
+        return new ClipboardManager(clipboard);
+    }
+
+    private ClipboardManager(IInterface manager) {
         this.manager = manager;
     }
 
     private Method getGetPrimaryClipMethod() throws NoSuchMethodException {
         if (getPrimaryClipMethod == null) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
                 getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class);
-            } else {
-                try {
-                    getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class, int.class);
-                    getMethodVersion = 0;
-                } catch (NoSuchMethodException e1) {
-                    try {
-                        getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class, String.class, int.class);
-                        getMethodVersion = 1;
-                    } catch (NoSuchMethodException e2) {
-                        try {
-                            getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class, String.class, int.class, int.class);
-                            getMethodVersion = 2;
-                        } catch (NoSuchMethodException e3) {
-                            getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class, int.class, String.class);
-                            getMethodVersion = 3;
-                        }
-                    }
-                }
+                return getPrimaryClipMethod;
             }
+
+            try {
+                getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class, int.class);
+                getMethodVersion = 0;
+                return getPrimaryClipMethod;
+            } catch (NoSuchMethodException e) {
+                // fall-through
+            }
+
+            try {
+                getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class, String.class, int.class);
+                getMethodVersion = 1;
+                return getPrimaryClipMethod;
+            } catch (NoSuchMethodException e) {
+                // fall-through
+            }
+
+            try {
+                getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class, String.class, int.class, int.class);
+                getMethodVersion = 2;
+                return getPrimaryClipMethod;
+            } catch (NoSuchMethodException e) {
+                // fall-through
+            }
+
+            try {
+                getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class, int.class, String.class);
+                getMethodVersion = 3;
+                return getPrimaryClipMethod;
+            } catch (NoSuchMethodException e) {
+                // fall-through
+            }
+
+            try {
+                getPrimaryClipMethod = manager.getClass()
+                        .getMethod("getPrimaryClip", String.class, String.class, int.class, int.class, boolean.class);
+                getMethodVersion = 4;
+                return getPrimaryClipMethod;
+            } catch (NoSuchMethodException e) {
+                // fall-through
+            }
+
+            try {
+                getPrimaryClipMethod = manager.getClass()
+                        .getMethod("getPrimaryClip", String.class, String.class, String.class, String.class, int.class, int.class, boolean.class);
+                getMethodVersion = 5;
+                return getPrimaryClipMethod;
+            } catch (NoSuchMethodException e) {
+                // fall-through
+            }
+
+            getPrimaryClipMethod = manager.getClass().getMethod("getPrimaryClip", String.class, String.class, int.class, int.class, String.class);
+            getMethodVersion = 6;
         }
         return getPrimaryClipMethod;
     }
 
     private Method getSetPrimaryClipMethod() throws NoSuchMethodException {
         if (setPrimaryClipMethod == null) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
                 setPrimaryClipMethod = manager.getClass().getMethod("setPrimaryClip", ClipData.class, String.class);
-            } else {
-                try {
-                    setPrimaryClipMethod = manager.getClass().getMethod("setPrimaryClip", ClipData.class, String.class, int.class);
-                    setMethodVersion = 0;
-                } catch (NoSuchMethodException e1) {
-                    try {
-                        setPrimaryClipMethod = manager.getClass().getMethod("setPrimaryClip", ClipData.class, String.class, String.class, int.class);
-                        setMethodVersion = 1;
-                    } catch (NoSuchMethodException e2) {
-                        setPrimaryClipMethod = manager.getClass()
-                                .getMethod("setPrimaryClip", ClipData.class, String.class, String.class, int.class, int.class);
-                        setMethodVersion = 2;
-                    }
-                }
+                return setPrimaryClipMethod;
             }
+
+            try {
+                setPrimaryClipMethod = manager.getClass().getMethod("setPrimaryClip", ClipData.class, String.class, int.class);
+                setMethodVersion = 0;
+                return setPrimaryClipMethod;
+            } catch (NoSuchMethodException e1) {
+                // fall-through
+            }
+
+            try {
+                setPrimaryClipMethod = manager.getClass().getMethod("setPrimaryClip", ClipData.class, String.class, String.class, int.class);
+                setMethodVersion = 1;
+                return setPrimaryClipMethod;
+            } catch (NoSuchMethodException e2) {
+                // fall-through
+            }
+
+            try {
+                setPrimaryClipMethod = manager.getClass()
+                        .getMethod("setPrimaryClip", ClipData.class, String.class, String.class, int.class, int.class);
+                setMethodVersion = 2;
+                return setPrimaryClipMethod;
+            } catch (NoSuchMethodException e3) {
+                // fall-through
+            }
+
+            setPrimaryClipMethod = manager.getClass()
+                    .getMethod("setPrimaryClip", ClipData.class, String.class, String.class, int.class, int.class, boolean.class);
+            setMethodVersion = 3;
         }
         return setPrimaryClipMethod;
     }
 
-    private static ClipData getPrimaryClip(Method method, int methodVersion, IInterface manager)
-            throws InvocationTargetException, IllegalAccessException {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+    private static ClipData getPrimaryClip(Method method, int methodVersion, IInterface manager) throws ReflectiveOperationException {
+        if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
             return (ClipData) method.invoke(manager, FakeContext.PACKAGE_NAME);
         }
 
@@ -87,14 +149,20 @@ public final class ClipboardManager {
                 return (ClipData) method.invoke(manager, FakeContext.PACKAGE_NAME, null, FakeContext.ROOT_UID);
             case 2:
                 return (ClipData) method.invoke(manager, FakeContext.PACKAGE_NAME, null, FakeContext.ROOT_UID, 0);
-            default:
+            case 3:
                 return (ClipData) method.invoke(manager, FakeContext.PACKAGE_NAME, FakeContext.ROOT_UID, null);
+            case 4:
+                // The last boolean parameter is "userOperate"
+                return (ClipData) method.invoke(manager, FakeContext.PACKAGE_NAME, null, FakeContext.ROOT_UID, 0, true);
+            case 5:
+                return (ClipData) method.invoke(manager, FakeContext.PACKAGE_NAME, null, null, null, FakeContext.ROOT_UID, 0, true);
+            default:
+                return (ClipData) method.invoke(manager, FakeContext.PACKAGE_NAME, null, FakeContext.ROOT_UID, 0, null);
         }
     }
 
-    private static void setPrimaryClip(Method method, int methodVersion, IInterface manager, ClipData clipData)
-            throws InvocationTargetException, IllegalAccessException {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+    private static void setPrimaryClip(Method method, int methodVersion, IInterface manager, ClipData clipData) throws ReflectiveOperationException {
+        if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
             method.invoke(manager, clipData, FakeContext.PACKAGE_NAME);
             return;
         }
@@ -106,9 +174,12 @@ public final class ClipboardManager {
             case 1:
                 method.invoke(manager, clipData, FakeContext.PACKAGE_NAME, null, FakeContext.ROOT_UID);
                 break;
-            default:
+            case 2:
                 method.invoke(manager, clipData, FakeContext.PACKAGE_NAME, null, FakeContext.ROOT_UID, 0);
                 break;
+            default:
+                // The last boolean parameter is "userOperate"
+                method.invoke(manager, clipData, FakeContext.PACKAGE_NAME, null, FakeContext.ROOT_UID, 0, true);
         }
     }
 
@@ -120,7 +191,7 @@ public final class ClipboardManager {
                 return null;
             }
             return clipData.getItemAt(0).getText();
-        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+        } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return null;
         }
@@ -132,15 +203,15 @@ public final class ClipboardManager {
             ClipData clipData = ClipData.newPlainText(null, text);
             setPrimaryClip(method, setMethodVersion, manager, clipData);
             return true;
-        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+        } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return false;
         }
     }
 
     private static void addPrimaryClipChangedListener(Method method, int methodVersion, IInterface manager, IOnPrimaryClipChangedListener listener)
-            throws InvocationTargetException, IllegalAccessException {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            throws ReflectiveOperationException {
+        if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
             method.invoke(manager, listener, FakeContext.PACKAGE_NAME);
             return;
         }
@@ -160,7 +231,7 @@ public final class ClipboardManager {
 
     private Method getAddPrimaryClipChangedListener() throws NoSuchMethodException {
         if (addPrimaryClipChangedListener == null) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT < AndroidVersions.API_29_ANDROID_10) {
                 addPrimaryClipChangedListener = manager.getClass()
                         .getMethod("addPrimaryClipChangedListener", IOnPrimaryClipChangedListener.class, String.class);
             } else {
@@ -191,7 +262,7 @@ public final class ClipboardManager {
             Method method = getAddPrimaryClipChangedListener();
             addPrimaryClipChangedListener(method, addListenerMethodVersion, manager, listener);
             return true;
-        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+        } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return false;
         }

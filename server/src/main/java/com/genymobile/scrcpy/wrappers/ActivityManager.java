@@ -1,19 +1,19 @@
 package com.genymobile.scrcpy.wrappers;
 
+import com.genymobile.scrcpy.AndroidVersions;
 import com.genymobile.scrcpy.FakeContext;
-import com.genymobile.scrcpy.Ln;
+import com.genymobile.scrcpy.util.Ln;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
+import android.content.IContentProvider;
 import android.content.Intent;
 import android.os.Binder;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.IInterface;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 @SuppressLint("PrivateApi,DiscouragedPrivateApi")
@@ -23,10 +23,23 @@ public final class ActivityManager {
     private Method getContentProviderExternalMethod;
     private boolean getContentProviderExternalMethodNewVersion = true;
     private Method removeContentProviderExternalMethod;
-    private Method startActivityAsUserWithFeatureMethod;
+    private Method startActivityAsUserMethod;
     private Method forceStopPackageMethod;
 
-    public ActivityManager(IInterface manager) {
+    static ActivityManager create() {
+        try {
+            // On old Android versions, the ActivityManager is not exposed via AIDL,
+            // so use ActivityManagerNative.getDefault()
+            Class<?> cls = Class.forName("android.app.ActivityManagerNative");
+            Method getDefaultMethod = cls.getDeclaredMethod("getDefault");
+            IInterface am = (IInterface) getDefaultMethod.invoke(null);
+            return new ActivityManager(am);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private ActivityManager(IInterface manager) {
         this.manager = manager;
     }
 
@@ -51,8 +64,8 @@ public final class ActivityManager {
         return removeContentProviderExternalMethod;
     }
 
-    @TargetApi(Build.VERSION_CODES.Q)
-    private ContentProvider getContentProviderExternal(String name, IBinder token) {
+    @TargetApi(AndroidVersions.API_29_ANDROID_10)
+    public IContentProvider getContentProviderExternal(String name, IBinder token) {
         try {
             Method method = getGetContentProviderExternalMethod();
             Object[] args;
@@ -71,12 +84,8 @@ public final class ActivityManager {
             // IContentProvider provider = providerHolder.provider;
             Field providerField = providerHolder.getClass().getDeclaredField("provider");
             providerField.setAccessible(true);
-            Object provider = providerField.get(providerHolder);
-            if (provider == null) {
-                return null;
-            }
-            return new ContentProvider(this, provider, name, token);
-        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException | NoSuchFieldException e) {
+            return (IContentProvider) providerField.get(providerHolder);
+        } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
             return null;
         }
@@ -86,35 +95,43 @@ public final class ActivityManager {
         try {
             Method method = getRemoveContentProviderExternalMethod();
             method.invoke(manager, name, token);
-        } catch (InvocationTargetException | IllegalAccessException | NoSuchMethodException e) {
+        } catch (ReflectiveOperationException e) {
             Ln.e("Could not invoke method", e);
         }
     }
 
     public ContentProvider createSettingsProvider() {
-        return getContentProviderExternal("settings", new Binder());
+        IBinder token = new Binder();
+        IContentProvider provider = getContentProviderExternal("settings", token);
+        if (provider == null) {
+            return null;
+        }
+        return new ContentProvider(this, provider, "settings", token);
     }
 
-    private Method getStartActivityAsUserWithFeatureMethod() throws NoSuchMethodException, ClassNotFoundException {
-        if (startActivityAsUserWithFeatureMethod == null) {
+    private Method getStartActivityAsUserMethod() throws NoSuchMethodException, ClassNotFoundException {
+        if (startActivityAsUserMethod == null) {
             Class<?> iApplicationThreadClass = Class.forName("android.app.IApplicationThread");
             Class<?> profilerInfo = Class.forName("android.app.ProfilerInfo");
-            startActivityAsUserWithFeatureMethod = manager.getClass()
-                    .getMethod("startActivityAsUserWithFeature", iApplicationThreadClass, String.class, String.class, Intent.class, String.class,
-                            IBinder.class, String.class, int.class, int.class, profilerInfo, Bundle.class, int.class);
+            startActivityAsUserMethod = manager.getClass()
+                    .getMethod("startActivityAsUser", iApplicationThreadClass, String.class, Intent.class, String.class, IBinder.class, String.class,
+                            int.class, int.class, profilerInfo, Bundle.class, int.class);
         }
-        return startActivityAsUserWithFeatureMethod;
+        return startActivityAsUserMethod;
+    }
+
+    public int startActivity(Intent intent) {
+        return startActivity(intent, null);
     }
 
     @SuppressWarnings("ConstantConditions")
-    public int startActivityAsUserWithFeature(Intent intent) {
+    public int startActivity(Intent intent, Bundle options) {
         try {
-            Method method = getStartActivityAsUserWithFeatureMethod();
+            Method method = getStartActivityAsUserMethod();
             return (int) method.invoke(
                     /* this */ manager,
                     /* caller */ null,
                     /* callingPackage */ FakeContext.PACKAGE_NAME,
-                    /* callingFeatureId */ null,
                     /* intent */ intent,
                     /* resolvedType */ null,
                     /* resultTo */ null,
@@ -122,7 +139,7 @@ public final class ActivityManager {
                     /* requestCode */ 0,
                     /* startFlags */ 0,
                     /* profilerInfo */ null,
-                    /* bOptions */ null,
+                    /* bOptions */ options,
                     /* userId */ /* UserHandle.USER_CURRENT */ -2);
         } catch (Throwable e) {
             Ln.e("Could not invoke method", e);
